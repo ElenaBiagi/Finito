@@ -1,0 +1,3 @@
+[submodule "SBWT"]
+	path = SBWT
+	url = https://github.com/algbio/SBWT.git
