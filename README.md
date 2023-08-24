@@ -28,6 +28,6 @@ The code takes a plain-matrix sbwt file as input. You can generate one by runnin
 Then, you can build the Finimizers index with:
 
 ```
-./benchmark build-fmin -u unitigs.fna -o out-file -i index.sbwt [--lcs LCS.sdsl] -t freq --type shortest
+./benchmark build-fmin -u unitigs.fna -i index.sbwt [--lcs LCS.sdsl] -o out-file -t freq --type shortest
 ```
 and query the data with
