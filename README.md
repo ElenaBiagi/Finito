@@ -8,7 +8,7 @@ First, pull the submodules with:
 git submodule init
 git submodule update
 ```
-Then, go the SBWT submodule and build it using the instructions in the submodule. Then, compile the experiments with:
+Then, go the SBWT submodule and build it using the instructions in the submodule. And compile the experiments with:
 ```
 cd SBWT/build
 
