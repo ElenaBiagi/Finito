@@ -497,8 +497,8 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sb
         }
     }
 
-    save_intv("fmin_unitigs_new", unitigs_v);
-    save_bv("fmin_bv_new", fmin_bv);
+    save_intv("fmin_unitigs", unitigs_v);
+    save_bv("fmin_bv", fmin_bv);
     return fmin_bv;
 }
 
