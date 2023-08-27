@@ -59,14 +59,14 @@ void load_bv(const std::string& filename, sdsl::bit_vector& v) {
 }
 
 void save_intv(const std::string& filename, const std::vector<uint64_t>& v) {
-    std::ofstream out(filename);
+    std::ofstream out(filename, std::ios::binary);
     for (const auto& p : v) {
         out << p << std::endl;
     }
     out.close();
 }
 void load_intv(const std::string& filename, std::vector<uint64_t>& v) {
-    std::ifstream in(filename);
+    std::ifstream in(filename, std::ios::binary);
     v.clear();
     int64_t p;
     while (in >> p) {
@@ -226,7 +226,7 @@ set<tuple<uint64_t,uint64_t, uint64_t>> verify_shortest_streaming_search( const 
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
     uint64_t I_start;
     // window
-    for (uint64_t i = 0; i <= str_len - k ; i++) {
+    for (uint64_t i = 0; i <= str_len - k; i++) {
         w_fmin = {k + 1, n_nodes, n_nodes, str_len}; // {len, freq, I start, start}
         // starting pos for the window
         for (uint64_t start = i; start < k + i; start ++){
@@ -245,14 +245,15 @@ set<tuple<uint64_t,uint64_t, uint64_t>> verify_shortest_streaming_search( const 
                 }
             }
         }
-        count_all_w_fmin.insert({get<2>(w_fmin), get<0>(w_fmin), get<1>(w_fmin)});// Istart, len, freq
+        count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin)});// (length,freq,colex)
+        //count_all_w_fmin.insert({get<2>(w_fmin), get<0>(w_fmin), get<1>(w_fmin)});// Istart, len, freq
         write_fasta({input.substr(i, k)+ ' ' + to_string(get<1>(w_fmin)), input.substr(get<3>(w_fmin), get<0>(w_fmin))}, writer);
     }
     return count_all_w_fmin;
 }
 
 template<typename writer_t>
-set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const uint64_t t, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
+set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const uint64_t t, writer_t& writer, sdsl::bit_vector& fmin_bv, vector<uint64_t>& unitigs_k, uint64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -274,7 +275,7 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
     // then drop the first char keeping track of which char you are starting from
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
-    for (end = 0; end <= str_len - k; end++) {
+    for (end = 0; end < str_len; end++) {
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -304,28 +305,33 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
                     break;
                 }
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
-
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
             }
         }
-        if (end >= k){
-                while (get<3>(w_fmin) < kmer) { //else keep the current w_fmin
+        // TODO check if this is making it so slow
+        if (end >= k-1){
+                // Check if the current minimizer is still in this window
+                while (get<3>(w_fmin) < kmer) {
                 all_fmin.erase(all_fmin.begin());
                 w_fmin = *all_fmin.begin();
                 }
-                count_all_w_fmin.insert({get<2>(w_fmin),get<0>(w_fmin), get<1>(w_fmin)});// Istart, len, freq
-                // add the last interval found to avoid computing it again
-                write_fasta({input.substr(kmer,k) + ' ' + to_string(get<1>(w_fmin)),input.substr(get<3>(w_fmin),get<0>(w_fmin))},writer);
+                size_t old_fmin_count = count_all_w_fmin.size();
+                // 
+                count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
+                //count_all_w_fmin.insert({get<2>(w_fmin),get<1>(w_fmin), get<0>(w_fmin)});// Istart, len, freq
+                if (old_fmin_count != count_all_w_fmin.size()){
+                    fmin_bv[get<2>(w_fmin)]=1;
+                    if (id >= (1ULL << 36) || start >= (1ULL << 28)) {
+                    std::cerr << "ISSUE: One or both numbers exceed the allowed bit range." << std::endl;
+                    }
+                    unitigs_k[get<2>(w_fmin)]= (id << 28) | get<3>(w_fmin);
+                }
+                //cerr << input.substr(kmer,k) <<' ' << to_string(get<0>(w_fmin)) << "fmin = " << input.substr(get<3>(w_fmin),get<1>(w_fmin));
+                write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
                 kmer++;
         }
-        
-        count_all_w_fmin.insert({get<2>(w_fmin), get<1>(w_fmin), get<0>(w_fmin)});// Istart, len, freq
-        write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
-
     }
-    // Check if the current minimizer is still in this window
-    
     return count_all_w_fmin;
 }
 
@@ -352,7 +358,7 @@ set<tuple<uint64_t,uint64_t,uint64_t>> build_shortest_streaming_search( const sd
     // then drop the first char keeping track of which char you are starting from
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
-    for (end = 0; end <= str_len - k; end++) {
+    for (end = 0; end <= str_len; end++) {
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
             const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
@@ -374,12 +380,13 @@ set<tuple<uint64_t,uint64_t,uint64_t>> build_shortest_streaming_search( const sd
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
             }
-            if (end >= k){
+            if (end >= k-1){
                 while (get<3>(w_fmin) < kmer) { //else keep the current w_fmin
                     all_fmin.erase(all_fmin.begin());
                     w_fmin = *all_fmin.begin();
                 }
-                count_all_w_fmin.insert({get<2>(w_fmin),get<0>(w_fmin), get<1>(w_fmin)});// Istart, len, freq
+                count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin),get<2>(w_fmin),});// (length,freq,colex)
+                //count_all_w_fmin.insert({get<2>(w_fmin),get<0>(w_fmin), get<1>(w_fmin)});// Istart, len, freq 
                 // add the last interval found to avoid computing it again
                 write_fasta({input.substr(kmer,k) + ' ' + to_string(get<1>(w_fmin)),input.substr(get<3>(w_fmin),get<0>(w_fmin))},writer);
                 kmer++;
@@ -414,16 +421,25 @@ vector<string> remove_ns(const string& unitig, const uint64_t k){
 template<typename sbwt_t, typename reader_t, typename writer_t>
 sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const uint64_t t, const string& type){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
     int64_t new_number_of_fmin = 0;
+    
     set<tuple<uint64_t, uint64_t, uint64_t>> new_search;
     set<tuple<uint64_t, uint64_t, uint64_t>>  finimizers;
     const uint64_t k = sbwt.get_k();
+
+    int64_t id = 0;
+    uint64_t n_nodes = sbwt.number_of_subsets();
+    sdsl::bit_vector fmin_bv(n_nodes);
+    vector<uint64_t> unitigs_k; // 36 and 28 bits 
+    unitigs_k.reserve(n_nodes);
+    unitigs_k.resize(n_nodes, 0);
     if (type == "rarest"){
         while(true) {
             int64_t len = reader.get_next_read_to_buffer();
             if(len == 0) [[unlikely]] break;
+            id++;
             vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
             for (string& seq : preprocessed_unitigs){
-                new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
+                new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }
@@ -451,21 +467,15 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sb
             }
         }
     }
-    
-    for(auto x:finimizers){
-        
 
-    }
-    // Istart, len, freq
-    size_t bv_size = sbwt.number_of_subsets();
-    sdsl::bit_vector fmin_bv(bv_size);
+    // (length,freq,colex)
     new_number_of_fmin = finimizers.size();
     uint64_t sum_freq = 0;
     uint64_t sum_len = 0;
     for (auto x : finimizers){
-        sum_freq += get<2>(x);
-        sum_len += get<1>(x);
-        fmin_bv[get<0>(x)] = 1;
+        sum_freq += get<1>(x);
+        sum_len += get<0>(x);
+        //fmin_bv[get<2>(x)] = 1;
     }
     tuple<string, string, string, string, string> stats = {to_string(t),to_string( new_number_of_fmin),to_string(sum_freq), to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)), to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) };
     writer_t writer_stats("stats.csv");
@@ -474,11 +484,33 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sb
     write_log("Sum of frequencies: " + to_string(sum_freq) , LogLevel::MAJOR);
     write_log("Avg frequency: " + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
     write_log("Avg length: " + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
+
+    // Resize the vector for unitigs (id, offset)
+    vector<uint64_t> unitigs_v; // 36 and 28 bits 
+    unitigs_v.reserve(new_number_of_fmin);
+    unitigs_v.resize(new_number_of_fmin);
+    uint64_t j=0;
+    for (uint64_t i = 0; i < n_nodes; i++){
+        if (fmin_bv[i] == 1){
+            unitigs_v[j] = unitigs_k[i];
+            j++;
+        }
+    }
+
+    save_intv("fmin_unitigs_new", unitigs_v);
+    save_bv("fmin_bv_new", fmin_bv);
     return fmin_bv;
 }
 
 
-void find_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const uint64_t t, const sdsl::bit_vector fmin_bv, const sdsl::rank_support_v5<>& fmin_rs, vector<uint64_t> unitigs_v, uint64_t id){ //const sdsl::int_vector<>& LCS
+// find the kmer and look for it streaming all unitigs until you found it
+// OR 
+// when finding finimizers I know unitig and offset butt I do not know the order
+// write them in a larger vector (Istart position) and remove 0 values or neg values
+// scan fmin_bv and keep only values of unitig_v where  fmin_bv[i]==1
+
+/* 
+void find_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const uint64_t t, const sdsl::bit_vector& fmin_bv, const sdsl::rank_support_v5<>& fmin_rs, vector<uint64_t> unitigs_v, uint64_t id){ //const sdsl::int_vector<>& LCS
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -488,7 +520,7 @@ void find_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const
     int64_t char_idx;
     uint64_t freq;
     uint64_t start = 0;
-    uint64_t combinedValue;
+    uint64_t unitig;
     for (uint64_t end = 0; end < str_len; end++) {
         char c = static_cast<char>(input[end] &~32);
         char_idx = get_char_idx(c);
@@ -506,11 +538,9 @@ void find_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const
                 std::cerr << "One or both numbers exceed the allowed bit range." << std::endl;
                 return;
                 }
-                uint64_t unitig = 0;
-                unitig |= (id & ((1ULL << 36) - 1));
-                combinedValue |= ((start & ((1ULL << 28) - 1)) << 36);
-                combinedValue |= ((id & ((1ULL << 28) - 1)) << 36);
-                unitigs_v[fmin_rs(I.first)] = combinedValue;
+                unitig = (id << 28) | start;
+                //cerr << to_string(unitig) << " = "<< to_string(id) <<", " << to_string(start) << endl;
+                unitigs_v[fmin_rs(I.first)] = unitig;
                 start++;
                 // todo check if it is necessary to ensure that start is always <= end or if it is so by construction as if start==end than the freq is >>1
                 if (start > end)[[unlikely]] {break;}
@@ -520,55 +550,55 @@ void find_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const
         }
     } 
 }
+ */
 
-template<typename sbwt_t, typename reader_t, typename writer_t>
-void find_fmin_streaming(reader_t& reader, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const uint64_t t, const string& type, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::bit_vector& fmin_bv){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
-    int64_t new_number_of_fmin = fmin_rs(sbwt.number_of_subsets());
-
-    const uint64_t k = sbwt.get_k();
-    int64_t id = 0;
-    vector<uint64_t> unitigs_v; // 36 and 28 bits
-    unitigs_v.reserve(new_number_of_fmin);
-    unitigs_v.resize(new_number_of_fmin);
-    if (type == "rarest"){
-    while(true) {
-            int64_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] {break;}
-            id++;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
-            for (string& seq : preprocessed_unitigs){
-                find_rarest_streaming_search(DNA_rs, sbwt, LCS, seq, t, fmin_bv, fmin_rs, unitigs_v, id);
-            }
-    }
-    }
-    // ORDERED BASED ON THE ORDER OF APPEARANCE IN THE SBWT -> RANK THEN FILL IN AN ARRAY OF THE SIZE OF SUM OF 1S IN FMIN_BV
-    // TODO modify also SHORTEST AND VERIFY     
-    /* } else if (type == "shortest") {
-        while(true) {
-            int64_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
-            for (string& seq : preprocessed_unitigs){
-                new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
-                new_number_of_fmin += new_search.size();
-                finimizers.insert(new_search.begin(), new_search.end());
-            }
-        }
-    } else if (type == "verify"){
-        while(true) {
-            int64_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
-            for (string& seq : preprocessed_unitigs){
-                new_search = verify_shortest_streaming_search(DNA_rs, sbwt ,seq, t, writer);
-                new_number_of_fmin += new_search.size();
-                finimizers.insert(new_search.begin(), new_search.end());
-            }
-        }
-    }
-    */
-   save_intv("fmin_unitigs", unitigs_v);
-}
+// template<typename sbwt_t, typename reader_t, typename writer_t>
+// void find_fmin_streaming(reader_t& reader, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const uint64_t t, const string& type, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::bit_vector& fmin_bv){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
+//     int64_t number_of_fmin = fmin_rs(sbwt.number_of_subsets()+1);
+//     const uint64_t k = sbwt.get_k();
+//     int64_t id = 0;
+//     vector<uint64_t> unitigs_v; // 36 and 28 bits
+//     unitigs_v.reserve(number_of_fmin);
+//     unitigs_v.resize(number_of_fmin);
+//     //if (type == "rarest"){
+//     while(true) {
+//             int64_t len = reader.get_next_read_to_buffer();
+//             if(len == 0) [[unlikely]] {break;}
+//             id++;
+//             vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+//             for (string& seq : preprocessed_unitigs){
+//                 find_rarest_streaming_search(DNA_rs, sbwt, LCS, seq, t, fmin_bv, fmin_rs, unitigs_v, id);
+//             }
+//     }
+//     //}
+//     // ORDERED BASED ON THE ORDER OF APPEARANCE IN THE SBWT -> RANK THEN FILL IN AN ARRAY OF THE SIZE OF SUM OF 1S IN FMIN_BV
+//     // TODO modify also SHORTEST AND VERIFY     
+//     /* } else if (type == "shortest") {
+//         while(true) {
+//             int64_t len = reader.get_next_read_to_buffer();
+//             if(len == 0) [[unlikely]] break;
+//             vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+//             for (string& seq : preprocessed_unitigs){
+//                 new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
+//                 new_number_of_fmin += new_search.size();
+//                 finimizers.insert(new_search.begin(), new_search.end());
+//             }
+//         }
+//     } else if (type == "verify"){
+//         while(true) {
+//             int64_t len = reader.get_next_read_to_buffer();
+//             if(len == 0) [[unlikely]] break;
+//             vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+//             for (string& seq : preprocessed_unitigs){
+//                 new_search = verify_shortest_streaming_search(DNA_rs, sbwt ,seq, t, writer);
+//                 new_number_of_fmin += new_search.size();
+//                 finimizers.insert(new_search.begin(), new_search.end());
+//             }
+//         }
+//     }
+//     */
+//    save_intv("fmin_unitigs", unitigs_v);
+// }
 
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
@@ -578,9 +608,8 @@ int64_t run_file_fmin(const string& infile, const string& outfile, const sbwt_t&
     //Assume sbwt has streaming support
     write_log("Running NEW streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
     sdsl::bit_vector fmin_bv = run_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt,  DNA_rs, LCS, t, type); // C,k,DNA_bitvectors,
-    save_bv("fmin_bv", fmin_bv);
-    sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
-    find_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, sbwt,  DNA_rs, LCS, t, type, fmin_rs, fmin_bv); // C,k,DNA_bitvectors,
+    //sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
+    //find_fmin_streaming<sbwt_t, reader_t, writer_t>(reader2, sbwt,  DNA_rs, LCS, t, type, fmin_rs, fmin_bv); // C,k,DNA_bitvectors,
     return 0;
 }
 
@@ -674,7 +703,7 @@ int build_fmin(int argc, char** argv) {
 
     set_log_level(LogLevel::MINOR);
 
-    cxxopts::Options options(argv[0], "Query all k-mers of all input reads.");
+    cxxopts::Options options(argv[0], "Find all Finimizers of all input reads.");
 
     vector<string> types = get_available_types();
     string all_types_string;
@@ -778,7 +807,7 @@ int build_fmin(int argc, char** argv) {
 
         string LCS_file = opts["lcs"].as<string>();
         if (LCS_file.empty()) {
-            std::cout << "LCS_file empty" << std::endl;
+            std::cerr << "LCS_file empty" << std::endl;
             LCS_file = indexfile + "LCS.sdsl";
             const sdsl::int_vector<> LCS = get_kmer_lcs(A_bits, C_bits, G_bits, T_bits, k);
             save_v(LCS_file, LCS);

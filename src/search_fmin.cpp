@@ -75,7 +75,7 @@ vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DN
     // then drop the first char keeping track of which char you are starting from
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
-    for (end = 0; end <= str_len - k; end++) {
+    for (end = 0; end < str_len; end++) {
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -90,7 +90,7 @@ vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DN
             I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
             freq = (I.second - I.first + 1);
             I_start = I.first;
-            // (1) Finimizer NOT found
+            // (1) Finimizer(subseq) NOT found
             if (I_new.first == -1){
                 kmer_start = ++start;
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes); // The result canno thave freq == 1
@@ -98,12 +98,12 @@ vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DN
             } else{
                 I = I_new;
             }
-            // (2) Finimizer freq > 0
+            // (2) Finimizer(subseq) freq > 0
             // Check if the Kmer interval has to be updated
             if ( start != kmer_start){
                 I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
-                // kmer NOT found
-               if(I_kmer_new.first == -1){
+                if(I_kmer_new.first == -1){
+                    // kmer NOT found
                     kmer_start++;
                     I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
                     //found = false;
@@ -130,12 +130,15 @@ vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DN
         }
         // Check if the kmer is found
         if (end - kmer_start + 1 == k){
+            //cerr << "Kmer found" << endl;
             while (get<3>(w_fmin) < kmer_start) { //else keep the current w_fmin
                 all_fmin.erase(all_fmin.begin());
                 w_fmin = *all_fmin.begin();
             }
             //found_kmers[kmers_start] == true;
-            found_kmers[kmer_start] == unitigs_v[fmin_rs(get<2>(w_fmin))];
+            found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))];
+            kmer_start++;
+            I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
         }
     }
     return found_kmers;
@@ -157,8 +160,9 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
         //vector<int64_t> out_buffer = sbwt.streaming_search(first_kmer, len);
         //pair<std::string, int64_t> eulertig = unitigs_v[fmin_rs(w_fmin.first)];
         number_of_queries += out_buffer.size();
+        print_vector(out_buffer, writer);
     }
-    print_vector(out_buffer, writer);
+    
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     return number_of_queries;
 }
@@ -245,9 +249,9 @@ int search_fmin(int argc, char** argv){
 
     set_log_level(LogLevel::MINOR);
 
-    cxxopts::Options options(argv[0], "Query all k-mers of all input reads.");
+    cxxopts::Options options(argv[0], "Query all Finimizers of all input reads.");
 
-       vector<string> types = get_available_types();
+    vector<string> types = get_available_types();
     string all_types_string;
     for (string type: types) all_types_string += " " + type;
 
@@ -258,10 +262,10 @@ int search_fmin(int argc, char** argv){
         ("q,query-file", "The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.", cxxopts::value<string>())
         ("z,gzip-output", "Writes output in gzipped form. This can shrink the output files by an order of magnitude.", cxxopts::value<bool>()->default_value("false"))
         ("t", "Maximum finimizer frequency", cxxopts::value<uint64_t>())
+        ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string,cxxopts::value<string>()->default_value("rarest"))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("f, fmin_bv", "Provide in input the finimizers binary kmers vector.", cxxopts::value<string>()->default_value(""))
-        ("unitigs_v", "Provide in input the eulertigs headers and offsets of the finimizers.", cxxopts::value<string>()->default_value(""))
-
+        ("unitigs-v", "Provide in input the eulertigs headers and offsets of the finimizers.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage")
     ;
 
@@ -274,7 +278,14 @@ int search_fmin(int argc, char** argv){
     }
 
     char t = opts["t"].as<uint64_t>();
-    bool revcomps = opts["add-reverse-complements"].as<bool>();
+
+    // TODO add type, only rarest now
+    string type = opts["type"].as<string>();
+    if(std::find(types.begin(), types.end(), type) == types.end()){
+        cerr << "Error: unknown type: " << type << endl;
+        cerr << "Available types are:" << all_types_string << endl;
+        return 1;
+    }
 
     // Interpret input file
     string queryfile = opts["query-file"].as<string>();
@@ -359,7 +370,7 @@ int search_fmin(int argc, char** argv){
 
         sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
 
-        string unitigs_v_file = opts["unitigs_v"].as<string>();
+        string unitigs_v_file = opts["unitigs-v"].as<string>();
         std::vector<uint64_t> unitigs_v;
         load_intv(unitigs_v_file,unitigs_v);
         std::cerr<< "unitigs_v loaded"<<std::endl;
