@@ -21,8 +21,6 @@
 #include "sbwt/commands.hh"
 #include "sbwt/suffix_group_optimization.hh"
 
-
-
 using namespace std;
 using namespace sbwt;
 

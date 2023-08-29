@@ -45,7 +45,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 // Here you are nto sure to find the interval as when buildign fmin
 // First update Kmer interval then fmin
 template<typename writer_t>
-vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
+pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
     //writer_t writer_fmin("rarest_fmin_ecoli.csv");
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
@@ -62,12 +62,13 @@ vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DN
     vector<int64_t> found_kmers(str_len - k + 1,-1); 
 
     // (1) Calculate all possible fmin in the FIRST window
+    uint64_t count = 0;
     uint64_t start = 0;
     uint64_t end;
     uint64_t kmer_start = 0;
     bool found = true;
-    pair<int64_t, int64_t> I = {0, n_nodes - 1};
-    pair<int64_t, int64_t> I_new, I_kmer, I_kmer_new;
+    pair<int64_t, int64_t> I = {0, n_nodes - 1}, I_kmer = {0, n_nodes - 1};
+    pair<int64_t, int64_t> I_new, I_kmer_new;
     uint64_t I_start;
     tuple<uint64_t, uint64_t, uint64_t, uint64_t> curr_substr;
     //string writer = "rarest_";
@@ -76,6 +77,7 @@ vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DN
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
+        //cerr << "new end"<< endl;
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -83,65 +85,73 @@ vector<int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DN
             cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
         } else {
-            //const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
             const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
-            
             // 1) fmin interval
             I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
+            // (1) Finimizer(subseq) NOT found
+            // We already know that no kmer will bw found and no ok finimizer
+            while(I_new.first == -1){
+                //cerr << "Finimizer not found" << endl;
+                kmer_start = ++start;
+                I = drop_first_char(end - start + 1, I, LCS, n_nodes); // The result cannot have freq == 1
+                I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
+                I_kmer = I_new;
+            }
+            I = I_new;
             freq = (I.second - I.first + 1);
             I_start = I.first;
-            // (1) Finimizer(subseq) NOT found
-            if (I_new.first == -1){
-                kmer_start = ++start;
-                I = drop_first_char(end - start + 1, I, LCS, n_nodes); // The result canno thave freq == 1
-                I_kmer = I;
-            } else{
-                I = I_new;
-            }
             // (2) Finimizer(subseq) freq > 0
             // Check if the Kmer interval has to be updated
+            //if (start == kmer_start){ cerr << "START = K_START"<< endl;}
             if ( start != kmer_start){
                 I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
-                if(I_kmer_new.first == -1){
+                while(I_kmer_new.first == -1){
                     // kmer NOT found
+                    //cerr << "kmer not found: " << to_string(kmer_start) << " "<< input.substr(kmer_start, end - kmer_start + 1)<< " " << to_string(I_kmer_new.first) << " " << to_string(I_kmer_new.second) << " " << to_string(I_kmer.first) << " " << to_string(I_kmer.second)<< endl;
                     kmer_start++;
                     I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
-                    //found = false;
-                } else{
-                    I_kmer = I_kmer_new;
-                }
-            } else { I_kmer = I; }
+                    I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
+                } 
+                I_kmer = I_kmer_new;
+            } else { 
+                I_kmer = I;
+            }
             // (2b) Finimizer found
             while (freq == 1) {
                 curr_substr = {freq, end - start + 1, I_start, start};
                 all_fmin.insert(curr_substr);
                 // 1. rarest (freq=1), 2. shortest
                 if (w_fmin > curr_substr) {w_fmin = curr_substr;}
-
                 // 2. drop the first char
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                 start ++;
                 // todo check if it is necessary to ensure that start is always <= end or if it is so by construction as if start==end than the freq is >>1
-                if (start > end)[[unlikely]] { break; }
+                //if (start > end)[[unlikely]] { break; }
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
             }
-        }
-        // Check if the kmer is found
-        if (end - kmer_start + 1 == k){
-            //cerr << "Kmer found" << endl;
-            while (get<3>(w_fmin) < kmer_start) { //else keep the current w_fmin
-                all_fmin.erase(all_fmin.begin());
-                w_fmin = *all_fmin.begin();
+            // Check if the kmer is found
+            if (end - kmer_start + 1 == k){
+                count++;
+                //cerr << "Kmer found " << to_string(end - kmer_start + 1) << endl;
+                while (get<3>(w_fmin) < kmer_start) { //else keep the current w_fmin
+                    all_fmin.erase(all_fmin.begin());
+                    w_fmin = *all_fmin.begin();
+                }
+                //found_kmers[kmers_start] == true;
+                found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))];
+                //found_kmers[kmer_start] = 33;
+                kmer_start++;
+                
+                //cerr << to_string(end - kmer_start + 1) << endl; 
+                I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
-            //found_kmers[kmers_start] == true;
-            found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))];
-            kmer_start++;
-            I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
+            
         }
+        
     }
-    return found_kmers;
+    return {found_kmers, count};
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
@@ -149,21 +159,27 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
     // sbwt is useless
     int64_t total_micros = 0;
     int64_t number_of_queries = 0;
+    uint64_t kmers_count = 0 , count;
     vector<int64_t> out_buffer;
     while(true){
         int64_t len = reader.get_next_read_to_buffer();
         if(len == 0) break;
 
         int64_t t0 = cur_time_micros();
-        out_buffer = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, writer);
+        pair<vector<int64_t>, uint64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, writer);
+        out_buffer = final_pair.first;
+        count = final_pair.second;
     
         //vector<int64_t> out_buffer = sbwt.streaming_search(first_kmer, len);
         //pair<std::string, int64_t> eulertig = unitigs_v[fmin_rs(w_fmin.first)];
         number_of_queries += out_buffer.size();
+        kmers_count+=count;
         print_vector(out_buffer, writer);
     }
     
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
+    write_log("Found kmers: " + to_string(kmers_count), LogLevel::MAJOR);
+
     return number_of_queries;
 }
 
