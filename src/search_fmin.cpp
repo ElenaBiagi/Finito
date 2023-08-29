@@ -77,7 +77,6 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
-        //cerr << "new end"<< endl;
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
