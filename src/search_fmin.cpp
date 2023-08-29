@@ -89,9 +89,8 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
             // 1) fmin interval
             I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
             // (1) Finimizer(subseq) NOT found
-            // We already know that no kmer will bw found and no ok finimizer
+            // TODO We already know that no kmer will be found
             while(I_new.first == -1){
-                //cerr << "Finimizer not found" << endl;
                 kmer_start = ++start;
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes); // The result cannot have freq == 1
                 I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
@@ -107,7 +106,6 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
                 I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
                 while(I_kmer_new.first == -1){
                     // kmer NOT found
-                    //cerr << "kmer not found: " << to_string(kmer_start) << " "<< input.substr(kmer_start, end - kmer_start + 1)<< " " << to_string(I_kmer_new.first) << " " << to_string(I_kmer_new.second) << " " << to_string(I_kmer.first) << " " << to_string(I_kmer.second)<< endl;
                     kmer_start++;
                     I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
                     I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
@@ -125,8 +123,6 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
                 // 2. drop the first char
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                 start ++;
-                // todo check if it is necessary to ensure that start is always <= end or if it is so by construction as if start==end than the freq is >>1
-                //if (start > end)[[unlikely]] { break; }
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
@@ -134,17 +130,12 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
-                //cerr << "Kmer found " << to_string(end - kmer_start + 1) << endl;
                 while (get<3>(w_fmin) < kmer_start) { //else keep the current w_fmin
                     all_fmin.erase(all_fmin.begin());
                     w_fmin = *all_fmin.begin();
                 }
-                //found_kmers[kmers_start] == true;
                 found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))];
-                //found_kmers[kmer_start] = 33;
                 kmer_start++;
-                
-                //cerr << to_string(end - kmer_start + 1) << endl; 
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
             
