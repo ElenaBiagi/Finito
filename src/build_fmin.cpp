@@ -97,7 +97,7 @@ void write_fasta_old(const pair<string,string>& sequencePair, string& filename) 
 }
 
 void write_str_v(const vector<string>& myVector, const string& filename) {
-    if (filesystem::exists(filename)) { filesystem::remove(filename);}
+    //if (filesystem::exists(filename)) { filesystem::remove(filename);}
     std::ofstream outputFile(filename);
     while (outputFile.is_open()) {
         for (int i=0; i<myVector.size(); i++){//(const auto& str : myVector) {
