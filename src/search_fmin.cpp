@@ -46,7 +46,6 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 // First update Kmer interval then fmin
 template<typename writer_t>
 pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
-    //writer_t writer_fmin("rarest_fmin_ecoli.csv");
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -54,12 +53,10 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
     set<tuple<uint64_t, uint64_t, uint64_t, uint64_t>> all_fmin;
     const uint64_t str_len = input.size();
     tuple<uint64_t, uint64_t, uint64_t, uint64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
-    //vector<tuple<uint64_t, uint64_t, uint64_t, uint64_t>> all_w_fmin;
-    //set<tuple<uint64_t,uint64_t, uint64_t>> count_all_w_fmin;
-    //vector<bool> found_kmers;
+    
+    vector<int64_t> found_kmers(str_len - k + 1,-1);
     //unitigs_v.reserve(str_len - k + 1);
-    //unitigs_v.resize(str_len - k + 1);
-    vector<int64_t> found_kmers(str_len - k + 1,-1); 
+    //unitigs_v.resize(str_len - k + 1); 
 
     // (1) Calculate all possible fmin in the FIRST window
     uint64_t count = 0;
