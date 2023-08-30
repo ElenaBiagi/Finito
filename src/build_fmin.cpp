@@ -188,14 +188,15 @@ int64_t get_char_idx(char c){
     }
 }
 
-pair<int64_t,int64_t> update_sbwt_interval(char char_idx, pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs, const vector<int64_t>& C){
+pair<int64_t,int64_t> update_sbwt_interval(char char_idx, const pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs, const vector<int64_t>& C){
     //write_log("before updating interval",  LogLevel::MAJOR);
     if(I.first == -1) return I;
+    pair<int64_t,int64_t> new_I;
     // both start and end are included
-    I.first = C[char_idx] + Bit_rs(I.first);
-    I.second = C[char_idx] + Bit_rs(I.second+1) -1;
-    if(I.first > I.second) return {-1,-1}; // Not found
-    return {I.first, I.second};
+    new_I.first = C[char_idx] + Bit_rs(I.first);
+    new_I.second = C[char_idx] + Bit_rs(I.second+1) -1;
+    if(new_I.first > new_I.second) return {-1,-1}; // Not found
+    return new_I;
 }
 
 pair<int64_t,int64_t> drop_first_char(const uint64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const uint64_t n_nodes){
@@ -604,7 +605,7 @@ int64_t run_file_fmin(const string& infile, const string& outfile, const sbwt_t&
     reader_t reader(infile);
     writer_t writer(outfile);
     //Assume sbwt has streaming support
-    write_log("Running NEW streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
+    write_log("Searching Finimizers from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
     sdsl::bit_vector fmin_bv = run_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt,  DNA_rs, LCS, t, type); // C,k,DNA_bitvectors,
     //sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
     //find_fmin_streaming<sbwt_t, reader_t, writer_t>(reader2, sbwt,  DNA_rs, LCS, t, type, fmin_rs, fmin_bv); // C,k,DNA_bitvectors,
