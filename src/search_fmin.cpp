@@ -42,10 +42,10 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
     out.write(&newline, 1);
 }
 
-// Here you are nto sure to find the interval as when buildign fmin
+// Here you are nto sure to find the interval as when building fmin
 // First update Kmer interval then fmin
-template<typename writer_t>
-pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
+//template<typename writer_t>
+pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -57,13 +57,10 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
     vector<int64_t> found_kmers(str_len - k + 1,-1);
     //unitigs_v.reserve(str_len - k + 1);
     //unitigs_v.resize(str_len - k + 1); 
-
-    // (1) Calculate all possible fmin in the FIRST window
     uint64_t count = 0;
     uint64_t start = 0;
     uint64_t end;
     uint64_t kmer_start = 0;
-    bool found = true;
     pair<int64_t, int64_t> I = {0, n_nodes - 1}, I_kmer = {0, n_nodes - 1};
     pair<int64_t, int64_t> I_new, I_kmer_new;
     uint64_t I_start;
@@ -88,7 +85,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
             // TODO We already know that no kmer will be found
             while(I_new.first == -1){
                 kmer_start = ++start;
-                I = drop_first_char(end - start + 1, I, LCS, n_nodes); // The result cannot have freq == 1
+                I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
                 I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
                 I_kmer = I_new;
             }
@@ -97,13 +94,12 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
             I_start = I.first;
             // (2) Finimizer(subseq) freq > 0
             // Check if the Kmer interval has to be updated
-            //if (start == kmer_start){ cerr << "START = K_START"<< endl;}
             if ( start != kmer_start){
                 I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
                 while(I_kmer_new.first == -1){
                     // kmer NOT found
                     kmer_start++;
-                    I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
+                    I_kmer = drop_first_char(end - kmer_start, I_kmer, LCS, n_nodes);
                     I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
                 } 
                 I_kmer = I_kmer_new;
@@ -126,7 +122,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
-                while (get<3>(w_fmin) < kmer_start) { //else keep the current w_fmin
+                while (get<3>(w_fmin) < kmer_start) {
                     all_fmin.erase(all_fmin.begin());
                     w_fmin = *all_fmin.begin();
                 }
@@ -140,7 +136,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
     }
     return {found_kmers, count};
 }
-
+ 
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, const char t){
     // sbwt is useless
@@ -153,7 +149,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
         if(len == 0) break;
 
         int64_t t0 = cur_time_micros();
-        pair<vector<int64_t>, uint64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, writer);
+        pair<vector<int64_t>, uint64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v);
         out_buffer = final_pair.first;
         count = final_pair.second;
     
