@@ -17,6 +17,38 @@ using namespace std;
 
 using namespace sbwt;
 
+size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin_bv, const sdsl::rank_support_v5<>& fmin_rs, const std::vector<uint64_t>& unitigs_v, const plain_matrix_sbwt_t& sbwt){
+            size_t sz = 0;
+            // LCS
+            sz += sdsl::size_in_bytes(LCS);
+            // marks
+            sz += sdsl::size_in_bytes(fmin_bv);
+            sz += sdsl::size_in_bytes(fmin_rs);
+            // ids
+            sz += unitigs_v.size()*(sizeof(uint64_t));
+            // SBWT
+            const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;                
+            const sdsl::bit_vector& C_bits = sbwt.get_subset_rank_structure().C_bits;
+            const sdsl::bit_vector& G_bits = sbwt.get_subset_rank_structure().G_bits;
+            const sdsl::bit_vector& T_bits = sbwt.get_subset_rank_structure().T_bits;
+            const sdsl::bit_vector* DNA_bitvectors[4] = {&A_bits, &C_bits, &G_bits, &T_bits};
+
+
+            const sdsl::rank_support_v5<> &A_bits_rs = sbwt.get_subset_rank_structure().A_bits_rs;
+            const sdsl::rank_support_v5<> &C_bits_rs = sbwt.get_subset_rank_structure().C_bits_rs;
+            const sdsl::rank_support_v5<> &G_bits_rs = sbwt.get_subset_rank_structure().G_bits_rs;
+            const sdsl::rank_support_v5<> &T_bits_rs = sbwt.get_subset_rank_structure().T_bits_rs;
+            sz += sdsl::size_in_bytes(A_bits);
+            sz += sdsl::size_in_bytes(A_bits_rs);
+            sz += sdsl::size_in_bytes(C_bits);
+            sz += sdsl::size_in_bytes(C_bits_rs);
+            sz += sdsl::size_in_bytes(G_bits);
+            sz += sdsl::size_in_bytes(G_bits_rs);
+            sz += sdsl::size_in_bytes(T_bits);
+            sz += sdsl::size_in_bytes(T_bits_rs);
+            return sz;
+        }
+
 // Assumes values of v are -1 or larger
 template <typename writer_t>
 inline void print_vector(const vector<int64_t>& v, writer_t& out){
@@ -355,7 +387,8 @@ int search_fmin(int argc, char** argv){
         if (LCS_file.empty()) {
             std::cout<< "LCS_file empty"<<std::endl;
             LCS_file = indexfile + "LCS.sdsl";
-            const sdsl::int_vector<> LCS = get_kmer_lcs(A_bits, C_bits, G_bits, T_bits, k);
+            const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(sbwt, 8);
+            //const sdsl::int_vector<> LCS = get_kmer_lcs(A_bits, C_bits, G_bits, T_bits, k);
            save_v(LCS_file, LCS);
         }
         sdsl::int_vector<> LCS;
@@ -378,10 +411,18 @@ int search_fmin(int argc, char** argv){
         int64_t new_total_micros = cur_time_micros() - micros_start;
         write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
         write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
+        
+        size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v, sbwt);
+        write_log("bytes: " + to_string(bytes), LogLevel::MAJOR);
+
+        
+
     }
 
     int64_t total_micros = cur_time_micros() - micros_start;
     write_log("us/query end-to-end: " + to_string((double)total_micros / number_of_queries), LogLevel::MAJOR);
+
+    
 
     return 0;
 
