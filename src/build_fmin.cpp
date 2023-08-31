@@ -20,6 +20,7 @@
 #include "sdsl/bit_vectors.hpp"
 #include "sbwt/commands.hh"
 #include "sbwt/suffix_group_optimization.hh"
+#include "lcs_basic_parallel_algorithm.hpp"
 
 using namespace std;
 using namespace sbwt;
@@ -125,7 +126,7 @@ void write_csv(const tuple<string, string, string, string,string>& p, writer_t& 
     out.write(line.c_str(), line.length());
     out.write(&newline, 1);
 }
-
+/* 
 sdsl::int_vector<> get_kmer_lcs(const sdsl::bit_vector& A_bits,
                                 const sdsl::bit_vector& C_bits,
                                 const sdsl::bit_vector& G_bits,
@@ -178,6 +179,7 @@ sdsl::int_vector<> get_kmer_lcs(const sdsl::bit_vector& A_bits,
     return lcs;
 }
 
+ */
 int64_t get_char_idx(char c){
     switch(c){
         case 'A': return 0;
@@ -709,7 +711,8 @@ int build_fmin(int argc, char** argv) {
         if (LCS_file.empty()) {
             std::cerr << "LCS_file empty" << std::endl;
             LCS_file = indexfile + "LCS.sdsl";
-            const sdsl::int_vector<> LCS = get_kmer_lcs(A_bits, C_bits, G_bits, T_bits, k);
+            const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(sbwt, 8);
+            //const sdsl::int_vector<> LCS = get_kmer_lcs(A_bits, C_bits, G_bits, T_bits, k);
             save_v(LCS_file, LCS);
         }
         sdsl::int_vector<> LCS;
