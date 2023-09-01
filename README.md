@@ -5,8 +5,7 @@ Missing definition
 # Building
 First, pull the submodules with:
 ```
-git submodule init
-git submodule update
+git submodule update --init --recursive
 ```
 Then, go the SBWT submodule and build it using the instructions in the submodule. And compile the experiments with:
 ```
