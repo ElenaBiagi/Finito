@@ -3,7 +3,7 @@ Missing definition
 canonical unitigs
 
 
-# Building
+## Building
 First, pull the submodules with:
 ```
 git submodule update --init --recursive
@@ -18,9 +18,9 @@ make -j4
 cd ../..
 make benchmark --always-make CXX=g++-10
 ```
-# Index construction
+## Index construction
 
-The code takes a plain-matrix sbwt file as input. You can generate one by running:
+The code takes a plain-matrix sbwt file as input generated from canonical unitigs. You can generate one by running:
 
 ```
 ./SBWT/build/bin/sbwt build -i SBWT/example_data/coli3.fna -o index.sbwt -k 30
@@ -93,3 +93,11 @@ Usage:
 
 ```
 type has to be the same for both commands. The default type is "rarest", t=1. Selecting shortest the shortest finimizers is selected among those with frequency smaller than t. If t=1 then the two types are equivalent. 
+
+### Canonical unitigs
+Canonical unitigs are required as input to build the SBWT index. You can obtain canonical unitigs using [ggcat](https://github.com/algbio/ggcat).
+
+```
+ggcat build --min-multiplicity 1 -k 31 --output-file out.fna --threads-count 48 input.fna
+```
+
