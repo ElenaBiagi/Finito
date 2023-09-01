@@ -1,6 +1,6 @@
 # Finimizers
 Missing definition
-canonical unitigs
+
 
 
 ## Building
