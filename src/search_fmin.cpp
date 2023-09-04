@@ -58,10 +58,11 @@ size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin
 
             // ids
             sz += unitigs_v.size()*(sizeof(uint32_t));
-            cerr << "offsets size = " << to_string(unitigs_v.size()*(sizeof(uint64_t))) << endl;
+            cerr << "offsets size = " << to_string(unitigs_v.size()*(sizeof(uint32_t))) << endl;
 
+            // endpoints
             sz += sdsl::size_in_bytes(ef_endpoints);
-            cerr << "endpoints size = " << to_string(unitigs_v.size()*(sizeof(uint64_t))) << endl;
+            cerr << "endpoints size = " << to_string(sdsl::size_in_bytes(ef_endpoints)) << endl;
 
             cerr << "Total size in bytes = " << to_string(sz) << endl;
 
@@ -96,7 +97,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
-pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -184,7 +185,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
     }
     return {found_kmers, count};
 }
-pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -276,7 +277,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
 
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, const char t){
+int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
     
     const uint64_t k = sbwt.get_k();
 
@@ -294,7 +295,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
         
         int64_t t0 = cur_time_micros();
         vector<int64_t> found_kmers(len - k + 1,-1);
-        pair<vector<int64_t>, uint64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, found_kmers);
+        pair<vector<int64_t>, uint64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
         out_buffer = final_pair.first;
         count = final_pair.second;
         number_of_queries += out_buffer.size();
@@ -302,7 +303,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
     
         //reverse compl
         const string reverse = sbwt::get_rc(reader.read_buf);
-        final_pair = rarest_fmin_streaming_search_r( DNA_rs, sbwt, LCS, reverse, t, fmin_rs, unitigs_v, found_kmers);
+        final_pair = rarest_fmin_streaming_search_r( DNA_rs, sbwt, LCS, reverse, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
         out_buffer_rev = final_pair.first;
         count_rev = final_pair.second;
         //number_of_queries += out_buffer_rev.size();
@@ -349,12 +350,12 @@ int64_t run_queries_not_streaming(reader_t& reader, writer_t& writer, const sbwt
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_fmin_file(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const std::vector<uint64_t>& unitigs_v, const char t){
+int64_t run_fmin_file(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const std::vector<uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
     reader_t reader(infile);
     writer_t writer(outfile);
     if(sbwt.has_streaming_query_support()){
         write_log("Running streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-        return run_fmin_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, t);
+        return run_fmin_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
     }
     else{
         write_log("Running non-streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
@@ -364,7 +365,7 @@ int64_t run_fmin_file(const string& infile, const string& outfile, const sbwt_t&
 
 // Returns number of queries executed
 template<typename sbwt_t>
-int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& outfiles, const sbwt_t& sbwt, bool gzip_output, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, std::vector<uint64_t>& unitigs_v, const char t){
+int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& outfiles, const sbwt_t& sbwt, bool gzip_output, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, std::vector<uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
 
     if(infiles.size() != outfiles.size()){
         string count1 = to_string(infiles.size());
@@ -382,16 +383,16 @@ int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& ou
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
         if(gzip_input && gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v,t);
+            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v,ef_endpoints, t);
         }
         if(gzip_input && !gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         }
         if(!gzip_input && gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         }
         if(!gzip_input && !gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         }
     }
     return n_queries_run;
@@ -421,7 +422,7 @@ int search_fmin(int argc, char** argv){
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("f, fmin_bv", "Provide in input the finimizers binary kmers vector.", cxxopts::value<string>()->default_value(""))
         ("e, endpoints", "Provide in input the endpoints of the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
-        ("o, offsets", "Provide in input the global offsets of finimizers in the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
+        ("g, global-offsets", "Provide in input the global offsets of finimizers in the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage")
     ;
 
@@ -528,7 +529,7 @@ int search_fmin(int argc, char** argv){
 
         sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
 
-        string unitigs_v_file = opts["offsets"].as<string>();
+        string unitigs_v_file = opts["global-offsets"].as<string>();
         std::vector<uint32_t> unitigs_v;
         load_intv32(unitigs_v_file,unitigs_v);
         std::cerr<< "offsets loaded"<<std::endl;
@@ -539,7 +540,7 @@ int search_fmin(int argc, char** argv){
         std::cerr<< "endpoints loaded"<<std::endl;
         sdsl::sd_vector<> ef_endpoints(endpoints.begin(),endpoints.end());
 
-        number_of_queries += run_fmin_queries(input_files, output_files, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v,t);
+        number_of_queries += run_fmin_queries(input_files, output_files, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         int64_t new_total_micros = cur_time_micros() - micros_start;
         write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
         write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
