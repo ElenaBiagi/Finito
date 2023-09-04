@@ -17,11 +17,14 @@
 
 #include "SeqIO.hh"
 
+//#include <sdsl/elias_fano_vector.hpp>
+
+
 using namespace std;
 
 using namespace sbwt;
 
-size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin_bv, const sdsl::rank_support_v5<>& fmin_rs, const std::vector<uint64_t>& unitigs_v, const plain_matrix_sbwt_t& sbwt){
+size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin_bv, const sdsl::rank_support_v5<>& fmin_rs, const std::vector<uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const plain_matrix_sbwt_t& sbwt){
             size_t sz = 0;
             // SBWT
             const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;                
@@ -54,10 +57,14 @@ size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin
             cerr << "fmin marks bitvector size = " << to_string(sdsl::size_in_bytes(fmin_bv)+sdsl::size_in_bytes(fmin_rs)) << endl;
 
             // ids
-            sz += unitigs_v.size()*(sizeof(uint64_t));
-            cerr << "LCS size = " << to_string(unitigs_v.size()*(sizeof(uint64_t))) << endl;
+            sz += unitigs_v.size()*(sizeof(uint32_t));
+            cerr << "offsets size = " << to_string(unitigs_v.size()*(sizeof(uint64_t))) << endl;
+
+            sz += sdsl::size_in_bytes(ef_endpoints);
+            cerr << "endpoints size = " << to_string(unitigs_v.size()*(sizeof(uint64_t))) << endl;
 
             cerr << "Total size in bytes = " << to_string(sz) << endl;
+
 
             return sz;
         }
@@ -87,8 +94,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
     out.write(&newline, 1);
 }
 
-// Here you are nto sure to find the interval as when building fmin
-// First update Kmer interval then fmin
+// Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
 pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const uint64_t n_nodes = sbwt.number_of_subsets();
@@ -414,7 +420,8 @@ int search_fmin(int argc, char** argv){
         ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string,cxxopts::value<string>()->default_value("rarest"))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("f, fmin_bv", "Provide in input the finimizers binary kmers vector.", cxxopts::value<string>()->default_value(""))
-        ("unitigs-v", "Provide in input the eulertigs headers and offsets of the finimizers.", cxxopts::value<string>()->default_value(""))
+        ("e, endpoints", "Provide in input the endpoints of the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
+        ("o, offsets", "Provide in input the global offsets of finimizers in the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage")
     ;
 
@@ -521,17 +528,23 @@ int search_fmin(int argc, char** argv){
 
         sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
 
-        string unitigs_v_file = opts["unitigs-v"].as<string>();
-        std::vector<uint64_t> unitigs_v;
-        load_intv(unitigs_v_file,unitigs_v);
-        std::cerr<< "unitigs_v loaded"<<std::endl;
+        string unitigs_v_file = opts["offsets"].as<string>();
+        std::vector<uint32_t> unitigs_v;
+        load_intv32(unitigs_v_file,unitigs_v);
+        std::cerr<< "offsets loaded"<<std::endl;
+
+        string endpoints_file = opts["endpoints"].as<string>();
+        std::vector<uint64_t> endpoints;
+        load_intv64(endpoints_file,endpoints);
+        std::cerr<< "endpoints loaded"<<std::endl;
+        sdsl::sd_vector<> ef_endpoints(endpoints.begin(),endpoints.end());
 
         number_of_queries += run_fmin_queries(input_files, output_files, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v,t);
         int64_t new_total_micros = cur_time_micros() - micros_start;
         write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
         write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
         
-        size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v, sbwt);
+        size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v, ef_endpoints, sbwt);
         write_log("bytes: " + to_string(bytes), LogLevel::MAJOR);
 
     }
