@@ -312,25 +312,21 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
         }
         // TODO check if this is making it so slow
         if (end >= k-1){
-                // Check if the current minimizer is still in this window
-                while (get<3>(w_fmin) < kmer) {
+            // Check if the current minimizer is still in this window
+            while (get<3>(w_fmin) < kmer) {
                 all_fmin.erase(all_fmin.begin());
                 w_fmin = *all_fmin.begin();
-                }
-                size_t old_fmin_count = count_all_w_fmin.size();
-                // 
-                count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
-                //count_all_w_fmin.insert({get<2>(w_fmin),get<1>(w_fmin), get<0>(w_fmin)});// Istart, len, freq
-                if (old_fmin_count != count_all_w_fmin.size()){
-                    fmin_bv[get<2>(w_fmin)]=1;
-                    if (id >= (1ULL << 36) || start >= (1ULL << 28)) {
+            }
+            size_t old_fmin_count = count_all_w_fmin.size();
+            count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
+            if (old_fmin_count != count_all_w_fmin.size()){
+                fmin_bv[get<2>(w_fmin)]=1;
+                if (id >= (1ULL << 36) || start >= (1ULL << 28)) {
                     std::cerr << "ISSUE: One or both numbers exceed the allowed bit range." << std::endl;
-                    }
-                    unitigs_k[get<2>(w_fmin)]= (id << 28) | get<3>(w_fmin);
                 }
-                //cerr << input.substr(kmer,k) <<' ' << to_string(get<0>(w_fmin)) << "fmin = " << input.substr(get<3>(w_fmin),get<1>(w_fmin));
-                write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
-                kmer++;
+                unitigs_k[get<2>(w_fmin)]= (id << 28) | get<3>(w_fmin);
+            }                write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
+            kmer++;
         }
     }
     return count_all_w_fmin;
@@ -387,8 +383,6 @@ set<tuple<uint64_t,uint64_t,uint64_t>> build_shortest_streaming_search( const sd
                     w_fmin = *all_fmin.begin();
                 }
                 count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin),get<2>(w_fmin),});// (length,freq,colex)
-                //count_all_w_fmin.insert({get<2>(w_fmin),get<0>(w_fmin), get<1>(w_fmin)});// Istart, len, freq 
-                // add the last interval found to avoid computing it again
                 write_fasta({input.substr(kmer,k) + ' ' + to_string(get<1>(w_fmin)),input.substr(get<3>(w_fmin),get<0>(w_fmin))},writer);
                 kmer++;
             }
@@ -420,7 +414,7 @@ vector<string> remove_ns(const string& unitig, const uint64_t k){
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const uint64_t t, const string& type){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
+sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const uint64_t t, const string& type){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
     int64_t new_number_of_fmin = 0;
     
     set<tuple<uint64_t, uint64_t, uint64_t>> new_search;
@@ -444,6 +438,9 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sb
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }
+            //id += len; //end point
+            //unitigs_k.push_back(len);// store end point
+            // store finimizers feq 
         }
     } else if (type == "shortest") {
         while(true) {
@@ -479,7 +476,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sb
         //fmin_bv[get<2>(x)] = 1;
     }
     tuple<string, string, string, string, string> stats = {to_string(t),to_string( new_number_of_fmin),to_string(sum_freq), to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)), to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) };
-    writer_t writer_stats("stats.csv");
+    writer_t writer_stats(indexfile + "stats.csv");
     write_csv(stats, writer_stats);
     write_log("#Distinct finimizers: " + to_string( new_number_of_fmin) , LogLevel::MAJOR);
     write_log("Sum of frequencies: " + to_string(sum_freq) , LogLevel::MAJOR);
@@ -498,25 +495,25 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const sb
         }
     }
 
-    save_intv("fmin_unitigs", unitigs_v);
-    save_bv("fmin_bv", fmin_bv);
+    save_intv(indexfile + "UV.sdsl", unitigs_v);
+    save_bv(indexfile + "FBV.sdsl", fmin_bv);
     return fmin_bv;
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_file_fmin(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const uint64_t t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+int64_t run_file_fmin(const string& infile, const string& outfile, const string& indexfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const uint64_t t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
     reader_t reader(infile);
     writer_t writer(outfile);
     //Assume sbwt has streaming support
     write_log("Searching Finimizers from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-    sdsl::bit_vector fmin_bv = run_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt,  DNA_rs, LCS, t, type); // C,k,DNA_bitvectors,
+    sdsl::bit_vector fmin_bv = run_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, writer, indexfile, sbwt,  DNA_rs, LCS, t, type); // C,k,DNA_bitvectors,
     //sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
     //find_fmin_streaming<sbwt_t, reader_t, writer_t>(reader2, sbwt,  DNA_rs, LCS, t, type, fmin_rs, fmin_bv); // C,k,DNA_bitvectors,
     return 0;
 }
 
 template<typename sbwt_t>
-int64_t fmin_search(const vector<string>& infiles, const string& outfile, const sbwt_t& sbwt,  const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const uint64_t t,const string& type, bool gzip_output){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+int64_t fmin_search(const vector<string>& infiles, const string& outfile, const string& indexfile, const sbwt_t& sbwt,  const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const uint64_t t,const string& type, bool gzip_output){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
 
     typedef SeqIO::Reader<Buffered_ifstream<zstr::ifstream>> in_gzip;
     typedef SeqIO::Reader<Buffered_ifstream<std::ifstream>> in_no_gzip;
@@ -528,16 +525,16 @@ int64_t fmin_search(const vector<string>& infiles, const string& outfile, const 
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
         if(gzip_input && gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_gzip>(infiles[i], outfile, sbwt,  DNA_rs, LCS,t, type); // DNA_bitvectors,
+            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_gzip>(infiles[i], outfile, indexfile, sbwt,  DNA_rs, LCS,t, type); // DNA_bitvectors,
         }
         if(gzip_input && !gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfile, sbwt,DNA_rs, LCS,t, type);
+            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfile, indexfile, sbwt,DNA_rs, LCS,t, type);
         }
         if(!gzip_input && gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfile, sbwt,DNA_rs, LCS,t, type);
+            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfile, indexfile, sbwt,DNA_rs, LCS,t, type);
         }
         if(!gzip_input && !gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfile, sbwt, DNA_rs, LCS,t, type);
+            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfile, indexfile, sbwt, DNA_rs, LCS,t, type);
         }
     }
 
@@ -613,20 +610,16 @@ int build_fmin(int argc, char** argv) {
 
     options.add_options()
             ("o,out-file", "Output filename.", cxxopts::value<string>())
-            ("i,index-file", "Index input file.", cxxopts::value<string>())
+            ("i,index-file", "Index input file.This has to be a binary matrix.", cxxopts::value<string>())
             ("u,in-file",
              "The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
              cxxopts::value<string>())
-            ("add-reverse-complements", "Also add the reverse complement of every k-mer to the index. Warning: this creates a temporary reverse-complemented duplicate of each input file before construction. Make sure that the directory at --temp-dir can handle this amount of data. If the input is gzipped, the duplicate will also be compressed, which might take a while.", cxxopts::value<bool>()->default_value("false"))
             ("z,gzip-output",
              "Writes output in gzipped form. This can shrink the output files by an order of magnitude.",
              cxxopts::value<bool>()->default_value("false"))
-            ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string,
-             cxxopts::value<string>()->default_value("rarest"))
+            ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
             ("t", "Maximum finimizer frequency", cxxopts::value<uint64_t>())
             ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
-            ("rmq", "For the option --lcs new-rmq provide in input the rmqLCS file if available.",
-             cxxopts::value<string>()->default_value(""))
             ("h,help", "Print usage");
 
     int64_t old_argc = argc; // Must store this because the parser modifies it
@@ -637,7 +630,6 @@ int build_fmin(int argc, char** argv) {
         exit(1);
     }
     uint64_t t = opts["t"].as<uint64_t>();
-    bool revcomps = opts["add-reverse-complements"].as<bool>();
 
     // input files
     string in_file = opts["in-file"].as<string>();
@@ -718,7 +710,7 @@ int build_fmin(int argc, char** argv) {
         sdsl::int_vector<> LCS;
         load_v(LCS_file, LCS);
         std::cerr << "LCS_file loaded" << std::endl;
-        fmin_search(input_files, outfile, sbwt, DNA_rs, LCS,t, type, gzip_output);//DNA_bitvectors,
+        fmin_search(input_files, outfile, indexfile, sbwt, DNA_rs, LCS,t, type, gzip_output);//DNA_bitvectors,
 
         return 0;
     }
