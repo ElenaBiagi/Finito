@@ -431,13 +431,13 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
         while(true) {
             int64_t len = reader.get_next_read_to_buffer();
             if(len == 0) [[unlikely]] break;
-            id++;
             vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
             for (string& seq : preprocessed_unitigs){
                 new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }
+            id++;
             //id += len; //end point
             //unitigs_k.push_back(len);// store end point
             // store finimizers feq 
