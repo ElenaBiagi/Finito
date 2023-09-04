@@ -55,7 +55,7 @@ size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin
 
             // ids
             sz += unitigs_v.size()*(sizeof(uint64_t));
-            cerr << "LCS size = " << to_string(unitigs_v.size()*(sizeof(uint64_t))) << endl;
+            cerr << "(id,offset) size = " << to_string(unitigs_v.size()*(sizeof(uint64_t))) << endl;
 
             cerr << "Total size in bytes = " << to_string(sz) << endl;
 
