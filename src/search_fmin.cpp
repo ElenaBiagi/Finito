@@ -87,8 +87,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
     out.write(&newline, 1);
 }
 
-// Here you are nto sure to find the interval as when building fmin
-// First update Kmer interval then fmin
+// Here you are not sure to find the interval as when building fmin
 //template<typename writer_t>
 pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const uint64_t n_nodes = sbwt.number_of_subsets();
@@ -268,7 +267,6 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
     return {found_kmers, count};
 }
 
-
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint64_t>& unitigs_v, const char t){
     
@@ -278,9 +276,6 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
     int64_t number_of_queries = 0;
     uint64_t kmers_count = 0 , count, count_rev, kmers_count_rev = 0;
     vector<int64_t> out_buffer, out_buffer_rev;
-    //found_kmers.reserve(str_len - k + 1);
-    //found_kmers.resize(str_len - k + 1); 
-
     
     while(true){
         int64_t len = reader.get_next_read_to_buffer();
@@ -288,10 +283,12 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
         
         int64_t t0 = cur_time_micros();
         vector<int64_t> found_kmers(len - k + 1,-1);
+        //found_kmers.reserve(str_len - k + 1);
+        //found_kmers.resize(str_len - k + 1); 
         pair<vector<int64_t>, uint64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, found_kmers);
         out_buffer = final_pair.first;
         count = final_pair.second;
-        number_of_queries += out_buffer.size();
+        number_of_queries += len - k + 1;
         kmers_count += count;
     
         //reverse compl
