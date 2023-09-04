@@ -57,14 +57,21 @@ void load_bv(const std::string& filename, sdsl::bit_vector& v) {
     in.close();
 }
 
-void save_intv(const std::string& filename, const std::vector<uint64_t>& v) {
+void save_intv64(const std::string& filename, const std::vector<uint64_t>& v) {
     std::ofstream out(filename, std::ios::binary);
     for (const auto& p : v) {
         out << p << std::endl;
     }
     out.close();
 }
-void load_intv(const std::string& filename, std::vector<uint64_t>& v) {
+void save_intv32(const std::string& filename, const std::vector<uint32_t>& v) {
+    std::ofstream out(filename, std::ios::binary);
+    for (const auto& p : v) {
+        out << p << std::endl;
+    }
+    out.close();
+}
+void load_intv64(const std::string& filename, std::vector<uint64_t>& v) {
     std::ifstream in(filename, std::ios::binary);
     v.clear();
     int64_t p;
@@ -74,6 +81,15 @@ void load_intv(const std::string& filename, std::vector<uint64_t>& v) {
     in.close();
 }
 
+void load_intv32(const std::string& filename, std::vector<uint32_t>& v) {
+    std::ifstream in(filename, std::ios::binary);
+    v.clear();
+    int64_t p;
+    while (in >> p) {
+        v.emplace_back(p);
+    }
+    in.close();
+}
 
 
 //write the output as a fasta file
@@ -254,7 +270,7 @@ set<tuple<uint64_t,uint64_t, uint64_t>> verify_shortest_streaming_search( const 
 }
 
 template<typename writer_t>
-set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const uint64_t t, writer_t& writer, sdsl::bit_vector& fmin_bv, vector<uint64_t>& unitigs_k, uint64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
+set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const uint64_t t, writer_t& writer, sdsl::bit_vector& fmin_bv, vector<uint32_t>& unitigs_k, uint64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -324,8 +340,9 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
                 if (id >= (1ULL << 36) || start >= (1ULL << 28)) {
                     std::cerr << "ISSUE: One or both numbers exceed the allowed bit range." << std::endl;
                 }
-                unitigs_k[get<2>(w_fmin)]= (id << 28) | get<3>(w_fmin);
-            }                write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
+                unitigs_k[get<2>(w_fmin)]= id + get<3>(w_fmin);
+            }                
+            write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
             kmer++;
         }
     }
@@ -424,9 +441,10 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     int64_t id = 0;
     uint64_t n_nodes = sbwt.number_of_subsets();
     sdsl::bit_vector fmin_bv(n_nodes);
-    vector<uint64_t> unitigs_k; // 36 and 28 bits 
+    vector<uint32_t> unitigs_k; // global offsets
     unitigs_k.reserve(n_nodes);
     unitigs_k.resize(n_nodes, 0);
+    vector<uint64_t> endpoints;
     if (type == "rarest"){
         while(true) {
             int64_t len = reader.get_next_read_to_buffer();
@@ -437,10 +455,8 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }
-            id++;
-            //id += len; //end point
-            //unitigs_k.push_back(len);// store end point
-            // store finimizers feq 
+            id += len; //end point
+            endpoints.push_back(id);// first char of the next string 
         }
     } else if (type == "shortest") {
         while(true) {
@@ -484,7 +500,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     write_log("Avg length: " + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
 
     // Resize the vector for unitigs (id, offset)
-    vector<uint64_t> unitigs_v; // 36 and 28 bits 
+    vector<uint32_t> unitigs_v; // 36 and 28 bits 
     unitigs_v.reserve(new_number_of_fmin);
     unitigs_v.resize(new_number_of_fmin);
     uint64_t j=0;
@@ -495,7 +511,8 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
         }
     }
 
-    save_intv(indexfile + "UV.sdsl", unitigs_v);
+    save_intv32(indexfile + "O.sdsl", unitigs_v);
+    save_intv64(indexfile + "E.sdsl", endpoints);
     save_bv(indexfile + "FBV.sdsl", fmin_bv);
     return fmin_bv;
 }
