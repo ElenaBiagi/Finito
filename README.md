@@ -83,8 +83,11 @@ Usage:
                         (default: "")
   -f, --fmin_bv arg     Provide in input the finimizers binary kmers 
                         vector. (default: "")
-      --unitigs-v arg   Provide in input the eulertigs headers and offsets 
-                        of the finimizers. (default: "")
+  -e, --endpoints arg       Provide in input the endpoints of the 
+                            concatenated unitigs. (default: "")
+  -g, --global-offsets arg  Provide in input the global offsets of 
+                            finimizers in the concatenated unitigs. 
+                            (default: "")
   -h, --help            Print usage
 ```
 ** Modify the example **
