@@ -24,15 +24,13 @@ using namespace std;
 
 using namespace sbwt;
 
-size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin_bv, const sdsl::rank_support_v5<>& fmin_rs, const std::vector<uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const plain_matrix_sbwt_t& sbwt){
+size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin_bv, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& unitigs_v,  const sdsl::sd_vector<>& ef_endpoints, const plain_matrix_sbwt_t& sbwt){
             size_t sz = 0;
             // SBWT
             const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;                
             const sdsl::bit_vector& C_bits = sbwt.get_subset_rank_structure().C_bits;
             const sdsl::bit_vector& G_bits = sbwt.get_subset_rank_structure().G_bits;
             const sdsl::bit_vector& T_bits = sbwt.get_subset_rank_structure().T_bits;
-            const sdsl::bit_vector* DNA_bitvectors[4] = {&A_bits, &C_bits, &G_bits, &T_bits};
-
 
             const sdsl::rank_support_v5<> &A_bits_rs = sbwt.get_subset_rank_structure().A_bits_rs;
             const sdsl::rank_support_v5<> &C_bits_rs = sbwt.get_subset_rank_structure().C_bits_rs;
@@ -57,11 +55,12 @@ size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin
             cerr << "fmin marks bitvector size = " << to_string(sdsl::size_in_bytes(fmin_bv)+sdsl::size_in_bytes(fmin_rs)) << endl;
 
             // ids
-            sz += unitigs_v.size()*(sizeof(uint32_t));
-            cerr << "offsets size = " << to_string(unitigs_v.size()*(sizeof(uint32_t))) << endl;
+            sz += sdsl::size_in_bytes(unitigs_v);
+            cerr << "offsets size = " << to_string(sdsl::size_in_bytes(unitigs_v)) << endl;
 
             // endpoints
             sz += sdsl::size_in_bytes(ef_endpoints);
+            
             cerr << "endpoints size = " << to_string(sdsl::size_in_bytes(ef_endpoints)) << endl;
 
             cerr << "Total size in bytes = " << to_string(sz) << endl;
@@ -97,7 +96,8 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
-pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+
+pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -185,7 +185,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
     }
     return {found_kmers, count};
 }
-pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -275,9 +275,8 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
     return {found_kmers, count};
 }
 
-
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  std::vector< uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
+int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
     
     const uint64_t k = sbwt.get_k();
 
@@ -304,9 +303,8 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
         //reverse compl
         const string reverse = sbwt::get_rc(reader.read_buf);
         final_pair = rarest_fmin_streaming_search_r( DNA_rs, sbwt, LCS, reverse, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
-        out_buffer_rev = final_pair.first;
+        //out_buffer_rev = final_pair.first;
         count_rev = final_pair.second;
-        //number_of_queries += out_buffer_rev.size();
         kmers_count_rev += count_rev;
         
         print_vector(found_kmers, writer);
@@ -319,7 +317,10 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const sbw
     write_log("Found kmers reverse : " + to_string(kmers_count_rev), LogLevel::MAJOR);
     write_log("Total found kmers: " + to_string(kmers_count+kmers_count_rev), LogLevel::MAJOR);
 
-
+    std::ofstream statsfile;
+    statsfile.open(indexfile + "stats.txt", std::ios_base::app); // append instead of overwrite
+    statsfile << to_string(k) + "," + to_string(kmers_count+kmers_count_rev) + "," + to_string(number_of_queries);
+    //statsfile.close();
     return number_of_queries;
 }
 
@@ -350,12 +351,12 @@ int64_t run_queries_not_streaming(reader_t& reader, writer_t& writer, const sbwt
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_fmin_file(const string& infile, const string& outfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const std::vector<uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
+int64_t run_fmin_file(const string& infile, const string& outfile, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
     reader_t reader(infile);
     writer_t writer(outfile);
     if(sbwt.has_streaming_query_support()){
         write_log("Running streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-        return run_fmin_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+        return run_fmin_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
     }
     else{
         write_log("Running non-streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
@@ -365,7 +366,7 @@ int64_t run_fmin_file(const string& infile, const string& outfile, const sbwt_t&
 
 // Returns number of queries executed
 template<typename sbwt_t>
-int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& outfiles, const sbwt_t& sbwt, bool gzip_output, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, std::vector<uint32_t>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
+int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& outfiles, const string& indexfile, const sbwt_t& sbwt, bool gzip_output, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
 
     if(infiles.size() != outfiles.size()){
         string count1 = to_string(infiles.size());
@@ -383,16 +384,16 @@ int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& ou
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
         if(gzip_input && gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v,ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v,ef_endpoints, t);
         }
         if(gzip_input && !gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         }
         if(!gzip_input && gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         }
         if(!gzip_input && !gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         }
     }
     return n_queries_run;
@@ -493,6 +494,8 @@ int search_fmin(int argc, char** argv){
         }
 
         const int64_t k = sbwt.get_k();
+        cerr << "k = "<< to_string(k);
+        cerr << " SBWT nodes: "<< to_string(sbwt.number_of_subsets())<< " kmers: "<< to_string(sbwt.number_of_kmers())<< endl;
 
 
         const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;                
@@ -530,28 +533,42 @@ int search_fmin(int argc, char** argv){
         sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
 
         string unitigs_v_file = opts["global-offsets"].as<string>();
-        std::vector<uint32_t> unitigs_v;
-        load_intv32(unitigs_v_file,unitigs_v);
+        sdsl::int_vector<> unitigs_v;
+        load_v(unitigs_v_file,unitigs_v);
         std::cerr<< "offsets loaded"<<std::endl;
 
         string endpoints_file = opts["endpoints"].as<string>();
-        std::vector<uint64_t> endpoints;
-        load_intv64(endpoints_file,endpoints);
+        //std::vector<uint32_t> endpoints;
+        //load_intv32(endpoints_file,endpoints);
+        sdsl::int_vector<> endpoints;
+        load_v(endpoints_file,endpoints);
         std::cerr<< "endpoints loaded"<<std::endl;
-        sdsl::sd_vector<> ef_endpoints(endpoints.begin(),endpoints.end());
+	for (int64_t x=1; x<endpoints.size();x++){
+	    if (endpoints[x-1] > endpoints[x]) cerr << to_string(x) << " " << to_string(endpoints[x-1]) << " " << to_string(endpoints[x]) << endl;
+	}
+	cerr << to_string(endpoints.size())<< endl;
+        sdsl::sd_vector<> ef_endpoints(endpoints.begin(),endpoints.end()); // Elias-Fano
 
-        number_of_queries += run_fmin_queries(input_files, output_files, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+        number_of_queries += run_fmin_queries(input_files, output_files, indexfile, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         int64_t new_total_micros = cur_time_micros() - micros_start;
         write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
         write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
         
-        size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v, ef_endpoints, sbwt);
+        std::ofstream statsfile2;
+        statsfile2.open(indexfile + "stats.txt", std::ios_base::app); // append instead of overwrite
+        string results = to_string(number_of_queries);
+        statsfile2 << "," + to_string((double)new_total_micros / number_of_queries);
+        
+        size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v,ef_endpoints, sbwt);
         write_log("bytes: " + to_string(bytes), LogLevel::MAJOR);
-
+        statsfile2 <<  "," + to_string(bytes);
+        statsfile2 << "," + to_string(static_cast<float>(bytes*8)/sbwt.number_of_kmers()) + "\n";
+        statsfile2.close();
     }
 
     int64_t total_micros = cur_time_micros() - micros_start;
     write_log("us/query end-to-end: " + to_string((double)total_micros / number_of_queries), LogLevel::MAJOR);
+    
     return 0;
 
 }
