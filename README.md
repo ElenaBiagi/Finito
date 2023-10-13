@@ -92,7 +92,7 @@ Usage:
 ```
 ** Modify the example **
 ```
-./benchmark search-fmin -o out-file  -q query-file.fa -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq [--type shortest]
+./benchmark search-fmin -o out-file  -q query-file.fa -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
 
 ```
 type has to be the same for both commands. The default type is "rarest", t=1. Selecting shortest the shortest finimizers is selected among those with frequency smaller than t. If t=1 then the two types are equivalent. 
