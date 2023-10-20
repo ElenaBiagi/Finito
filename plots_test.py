@@ -58,11 +58,12 @@ def do_scatter_plot2(X1, Y1, X2, Y2, X3, Y3, X4, Y4, label1, label2,label3, labe
 
     print("Saving to", filename)
     plt.savefig(filename)
+    plt.close("all")
     
 
 def plot_runs(k3_infile, k2_infile, dataset_name, outfile_prefix):
-    k3_t, k3_counts, k3_sumfreq, k3_avgfreq , k3_avglen = parse(k3_infile)
-    k2_t, k2_counts, k2_sumfreq, k2_avgfreq, k2_avglen = parse(k2_infile)
+    k3_t, k3_counts, k3_sumfreq, k3_avgfreq , k3_avglen, k_kmers = parse(k3_infile)
+    k2_t, k2_counts, k2_sumfreq, k2_avgfreq, k2_avglen, k_kmers = parse(k2_infile)
 
     do_scatter_plot(k3_t, k3_counts, k2_t, k2_counts,
                     "Shortest", "rarest", "SBWT columns", "# finimizers",
@@ -84,30 +85,31 @@ def plot_runs(k3_infile, k2_infile, dataset_name, outfile_prefix):
                     "Time ({})".format(dataset_name),
                     "{}_avglen_by_t.pdf".format(outfile_prefix))
 
-def plot_runs_allk(k1_infile, k2_infile, k3_infile, k4_infile, dataset_name, outfile_prefix): 
-    k1_t, k1_counts, k1_sumfreq, k1_avgfreq , k1_avglen = parse(k1_infile)
-    k2_t, k2_counts, k2_sumfreq, k2_avgfreq, k2_avglen = parse(k2_infile)
-    k3_t, k3_counts, k3_sumfreq, k3_avgfreq , k3_avglen = parse(k3_infile)
-    k4_t, k4_counts, k4_sumfreq, k4_avgfreq, k4_avglen = parse(k4_infile)
+def plot_runs_allk(k1_infile, k2_infile, k3_infile, k4_infile, unitigs, dataset_name, outfile_prefix): 
+    k1_t, k1_counts, k1_sumfreq, k1_avgfreq , k1_avglen, k1_kmers = parse(k1_infile)
+    k2_t, k2_counts, k2_sumfreq, k2_avgfreq, k2_avglen, k2_kmers = parse(k2_infile)
+    k3_t, k3_counts, k3_sumfreq, k3_avgfreq , k3_avglen, k3_kmers = parse(k3_infile)
+    k4_t, k4_counts, k4_sumfreq, k4_avgfreq, k4_avglen, k4_kmers = parse(k4_infile)
 
-    do_scatter_plot2(k1_t, k1_counts, k2_t, k2_counts,k3_t, k3_counts, k4_t, k4_counts,
+    do_scatter_plot2(k1_t, k1_counts/k1_kmers, k2_t, k2_counts/k2_kmers,k3_t, k3_counts/k3_kmers, k4_t, k4_counts/k4_kmers,
                     "k=21", "k=31", "k=63", "k=127", "t", "# finimizers",
-                    "Flipped Unitigs {}".format(dataset_name),
+                    unitigs+"{}".format(dataset_name),
                     "{}_fmin_by_t.pdf".format(outfile_prefix))
 
     do_scatter_plot2(k1_t, k1_sumfreq, k2_t, k2_sumfreq,k3_t, k3_sumfreq, k4_t, k4_sumfreq,
                     "k=21", "k=31", "k=63", "k=127", "t", "Sum of finimizers frequencies",
-                    "Flipped Unitigs {}".format(dataset_name),
+                    unitigs+"{}".format(dataset_name),
                     "{}_sumfreq_by_t.pdf".format(outfile_prefix))
 
+    """
     do_scatter_plot2(k1_t,k1_avgfreq, k2_t, k2_avgfreq, k3_t,k3_avgfreq, k4_t, k4_avgfreq,
                    "k=21", "k=31", "k=63", "k=127", "t", "Average finimmizer frequency",
-                    "Flipped Unitigs {}".format(dataset_name),
+                    unitigs+"{}".format(dataset_name),
                     "{}_avgfreq_by_t.pdf".format(outfile_prefix))
-
+    """
     do_scatter_plot2(k1_t,k1_avglen, k2_t, k2_avglen, k3_t,k3_avglen, k4_t, k4_avglen,
                     "k=21", "k=31", "k=63", "k=127", "t", "Average finimmizer length",
-                    "Flipped Unitigs {}".format(dataset_name),
+                    unitigs+"{}".format(dataset_name),
                     "{}_avglen_by_t.pdf".format(outfile_prefix))
 
 
@@ -118,6 +120,22 @@ if not os.path.exists("test_plots"):
 #plot_runs("data_for_plots/k3_coli.csv", "data_for_plots/k2_coli.csv", "E. coli genomes", "plots/coli")
 #plot_runs("data_for_plots/k3_metagenome.csv", "data_for_plots/k2_metagenome.csv", "data_for_plots/superalphabet-2_metagenome.csv", "Metagenome reads", "plots/metagenome")
 
-plot_runs_allk("data_for_plots/f_coli3682-unitigs-k21.sbwttest.txt", "data_for_plots/f_coli3682-unitigs-k31.sbwttest.txt","data_for_plots/f_coli3682-unitigs-k63.sbwttest.txt", "data_for_plots/f_coli3682-unitigs-k127.sbwttest.txt", "E. coli", "test_plots/coli_funitigs")
-plot_runs_allk("data_for_plots/f_ERR5035349-unitigs-k21.sbwttest.txt", "data_for_plots/f_ERR5035349-unitigs-k31.sbwttest.txt","data_for_plots/f_ERR5035349-unitigs-k63.sbwttest.txt", "data_for_plots/f_ERR5035349-unitigs-k127.sbwttest.txt", "Metagenome", "test_plots/metagenome_funitigs")
-plot_runs_allk("data_for_plots/f_SRR25689478-unitigs-k21.sbwttest.txt", "data_for_plots/f_SRR25689478-unitigs-k31.sbwttest.txt","data_for_plots/f_SRR25689478-unitigs-k63.sbwttest.txt", "data_for_plots/f_SRR25689478-unitigs-k127.sbwttest.txt", "E. coli", "test_plots/nanopore_funitigs")
+# Flipped Unitigs
+plot_runs_allk("data_for_plots/f_coli3682-unitigs-k21.sbwttest.txt", "data_for_plots/f_coli3682-unitigs-k31.sbwttest.txt","data_for_plots/f_coli3682-unitigs-k63.sbwttest.txt", "data_for_plots/f_coli3682-unitigs-k127.sbwttest.txt", "Flipped Unitigs", "E. coli", "test_plots/coli_funitigs")
+plot_runs_allk("data_for_plots/f_ERR5035349-unitigs-k21.sbwttest.txt", "data_for_plots/f_ERR5035349-unitigs-k31.sbwttest.txt","data_for_plots/f_ERR5035349-unitigs-k63.sbwttest.txt", "data_for_plots/f_ERR5035349-unitigs-k127.sbwttest.txt", "Flipped Unitigs", "Metagenome", "test_plots/metagenome_funitigs")
+plot_runs_allk("data_for_plots/f_SRR25689478-unitigs-k21.sbwttest.txt", "data_for_plots/f_SRR25689478-unitigs-k31.sbwttest.txt","data_for_plots/f_SRR25689478-unitigs-k63.sbwttest.txt", "data_for_plots/f_SRR25689478-unitigs-k127.sbwttest.txt", "Flipped Unitigs", "Nanopore", "test_plots/nanopore_funitigs")
+
+# Flipped Eulertigs
+plot_runs_allk("data_for_plots/f_coli3682-eulertigs-k21.sbwttest.txt", "data_for_plots/f_coli3682-eulertigs-k31.sbwttest.txt","data_for_plots/f_coli3682-eulertigs-k63.sbwttest.txt", "data_for_plots/f_coli3682-eulertigs-k127.sbwttest.txt", "Flipped Eulertigs", "E. coli", "test_plots/coli_feulertigs")
+plot_runs_allk("data_for_plots/f_ERR5035349-eulertigs-k21.sbwttest.txt", "data_for_plots/f_ERR5035349-eulertigs-k31.sbwttest.txt","data_for_plots/f_ERR5035349-eulertigs-k63.sbwttest.txt", "data_for_plots/f_ERR5035349-eulertigs-k127.sbwttest.txt", "Flipped Eulertigs", "Metagenome", "test_plots/metagenome_feulertigs")
+# -127 plot_runs_allk("data_for_plots/f_SRR25689478-eulertigs-k21.sbwttest.txt", "data_for_plots/f_SRR25689478-eulertigs-k31.sbwttest.txt","data_for_plots/f_SRR25689478-eulertigs-k63.sbwttest.txt", "data_for_plots/f_SRR25689478-eulertigs-k127.sbwttest.txt", "Flipped Eulertigs", "Nanopore", "test_plots/nanopore_feulertigs")
+
+# Unitigs
+plot_runs_allk("data_for_plots/coli3682-unitigs-k21.sbwttest.txt", "data_for_plots/coli3682-unitigs-k31.sbwttest.txt","data_for_plots/coli3682-unitigs-k63.sbwttest.txt", "data_for_plots/coli3682-unitigs-k127.sbwttest.txt", "Unitigs", "E. coli", "test_plots/coli_unitigs")
+plot_runs_allk("data_for_plots/ERR5035349-unitigs-k21.sbwttest.txt", "data_for_plots/ERR5035349-unitigs-k31.sbwttest.txt","data_for_plots/ERR5035349-unitigs-k63.sbwttest.txt", "data_for_plots/ERR5035349-unitigs-k127.sbwttest.txt", "Unitigs", "Metagenome", "test_plots/metagenome_unitigs")
+# -127 plot_runs_allk("data_for_plots/SRR25689478-unitigs-k21.sbwttest.txt", "data_for_plots/SRR25689478-unitigs-k31.sbwttest.txt","data_for_plots/SRR25689478-unitigs-k63.sbwttest.txt", "data_for_plots/SRR25689478-unitigs-k127.sbwttest.txt", "Unitigs", "Nanopore", "test_plots/nanopore_unitigs")
+
+# Eulertigs
+plot_runs_allk("data_for_plots/coli3682-eulertigs-k21.sbwttest.txt", "data_for_plots/coli3682-eulertigs-k31.sbwttest.txt","data_for_plots/coli3682-eulertigs-k63.sbwttest.txt", "data_for_plots/coli3682-eulertigs-k127.sbwttest.txt", "Eulertigs", "E. coli", "test_plots/coli_eulertigs")
+# -31 63 127 plot_runs_allk("data_for_plots/ERR5035349-eulertigs-k21.sbwttest.txt", "data_for_plots/ERR5035349-eulertigs-k31.sbwttest.txt","data_for_plots/ERR5035349-eulertigs-k63.sbwttest.txt", "data_for_plots/ERR5035349-eulertigs-k127.sbwttest.txt", "Eulertigs", "Metagenome", "test_plots/metagenome_eulertigs")
+# -127 plot_runs_allk("data_for_plots/SRR25689478-eulertigs-k21.sbwttest.txt", "data_for_plots/SRR25689478-eulertigs-k31.sbwttest.txt","data_for_plots/SRR25689478-eulertigs-k63.sbwttest.txt", "data_for_plots/SRR25689478-eulertigs-k127.sbwttest.txt", "Eulertigs", "Nanopore", "test_plots/nanopore_eulertigs")
