@@ -12,7 +12,7 @@ Then, go the SBWT submodule and build it using the instructions in the submodule
 ```
 cd SBWT/build
 
-cmake .. -DCMAKE_C_COMPILER=$(which gcc-10) -DCMAKE_CXX_COMPILER=$(which g++-10)
+cmake .. -DCMAKE_C_COMPILER=$(which gcc-10) -DCMAKE_CXX_COMPILER=$(which g++-10) -DMAX_KMER_LENGTH=250
 make -j4
 
 cd ../..
