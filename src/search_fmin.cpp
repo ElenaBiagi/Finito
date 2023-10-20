@@ -497,7 +497,6 @@ int search_fmin(int argc, char** argv){
         cerr << "k = "<< to_string(k);
         cerr << " SBWT nodes: "<< to_string(sbwt.number_of_subsets())<< " kmers: "<< to_string(sbwt.number_of_kmers())<< endl;
 
-
         const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;                
         const sdsl::bit_vector& C_bits = sbwt.get_subset_rank_structure().C_bits;
         const sdsl::bit_vector& G_bits = sbwt.get_subset_rank_structure().G_bits;
@@ -543,10 +542,6 @@ int search_fmin(int argc, char** argv){
         sdsl::int_vector<> endpoints;
         load_v(endpoints_file,endpoints);
         std::cerr<< "endpoints loaded"<<std::endl;
-	for (int64_t x=1; x<endpoints.size();x++){
-	    if (endpoints[x-1] > endpoints[x]) cerr << to_string(x) << " " << to_string(endpoints[x-1]) << " " << to_string(endpoints[x]) << endl;
-	}
-	cerr << to_string(endpoints.size())<< endl;
         sdsl::sd_vector<> ef_endpoints(endpoints.begin(),endpoints.end()); // Elias-Fano
 
         number_of_queries += run_fmin_queries(input_files, output_files, indexfile, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
@@ -563,6 +558,7 @@ int search_fmin(int argc, char** argv){
         write_log("bytes: " + to_string(bytes), LogLevel::MAJOR);
         statsfile2 <<  "," + to_string(bytes);
         statsfile2 << "," + to_string(static_cast<float>(bytes*8)/sbwt.number_of_kmers()) + "\n";
+        statsfile2 << "," + to_string(sbwt.number_of_kmers()) + "\n";
         statsfile2.close();
     }
 

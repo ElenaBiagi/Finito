@@ -23,6 +23,7 @@
 #include "sbwt/commands.hh"
 #include "sbwt/suffix_group_optimization.hh"
 #include "lcs_basic_parallel_algorithm.hpp"
+//#include "lcs_basic_algorithm.hpp"
 
 using namespace std;
 using namespace sbwt;
@@ -127,18 +128,25 @@ pair<int64_t,int64_t> update_sbwt_interval(char char_idx, const pair<int64_t,int
     // both start and end are included
     new_I.first = C[char_idx] + Bit_rs(I.first);
     new_I.second = C[char_idx] + Bit_rs(I.second+1) -1;
-    if(new_I.first > new_I.second) return {-1,-1}; // Not found
+    if(new_I.first > new_I.second){
+        //cerr << "start= " << to_string(new_I.first) << " end= "<< to_string(new_I.second) << endl;
+        return {-1,-1}; // Not found
+    } 
     return new_I;
 }
 
 pair<int64_t,int64_t> drop_first_char(const uint64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const uint64_t n_nodes){
+    //cerr << "enter drop_first_char, new_len="<< to_string(new_len)<< endl;
     if(I.first == -1) return I;
     pair<int64_t,int64_t> new_I = I;
     //Check top and bottom w the LCS
+    //cerr << "LCS["<<to_string(new_I.first)<<"]= "<< to_string(LCS[new_I.first]);
     while (LCS[new_I.first] >= new_len ){new_I.first --;}
+    //cerr << "  LCS["<< to_string(I.second + 1)<<"]= " << to_string(LCS[new_I.second + 1]);
     while(new_I.second < (n_nodes - 1) && LCS[new_I.second + 1] >= new_len ){
         new_I.second ++;
     }
+    //cerr << " EXIT!"<< endl;
     return {new_I};
 }
 
@@ -209,8 +217,8 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
-            cerr << "Error: unknown character: " << c << endl;
-            cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
+           std::cerr << "Error: unknown character: " << c << endl;
+           std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
         } else {
             //const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
@@ -219,9 +227,12 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
             I = update_sbwt_interval(char_idx, I, Bit_rs, C);
             freq = (I.second - I.first + 1);
             I_start = I.first;
-            while (freq == 1) { // We found something
+           //cerr << " I_start=" << to_string(I_start)<< endl;
+           //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
+            if (freq == 1){
+                while (freq == 1) { // We found something
                 curr_substr = {freq, end - start + 1, I_start, start};
-                all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<uint64_t>(I.first)});
+                //all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<uint64_t>(I.first)});
 
                 // Check window fmin
                 // 1. rarest (freq=1), 2. shortest
@@ -237,26 +248,37 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
+
+               //cerr << "dropped I_start=" << to_string(I_start)<< endl;
+               //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
+
             }
+            all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<uint64_t>(I.first)});
+            }
+            
         }
-        // TODO check if this is making it so slow
-        if (end >= k-1){
-            // Check if the current minimizer is still in this window
-            while (get<3>(w_fmin) < kmer) {
-                all_fmin.erase(all_fmin.begin());
-                w_fmin = *all_fmin.begin();
-            }
+        if (end > k){
             size_t old_fmin_count = count_all_w_fmin.size();
             count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
             if (old_fmin_count != count_all_w_fmin.size()){
                 fmin_bv[get<2>(w_fmin)]=1;
                 if ((id + get<3>(w_fmin))> ULLONG_MAX){
-                    std::cerr << "ISSUE: global offset exceedes the allowed bit range." << std::endl;
+                    std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
                 }
                 unitigs_k[get<2>(w_fmin)]= id + get<3>(w_fmin);
             }                
-            write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
+            //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
             kmer++;
+            // Check if the current minimizer is still in this window
+            while (get<3>(w_fmin) < kmer) {
+                all_fmin.erase(all_fmin.begin());
+                if (all_fmin.empty()){
+                    w_fmin={n_nodes,k+1,kmer+1,str_len};
+                }
+                else{ 
+                    w_fmin = *all_fmin.begin();
+                }
+            }
         }
     }
     return count_all_w_fmin;
@@ -272,7 +294,6 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
     const uint64_t str_len = input.size();
     tuple<uint64_t, uint64_t, uint64_t, uint64_t> w_fmin = {k+2,n_nodes,n_nodes,str_len}; // {len, freq, I start, start}
     set<tuple<uint64_t,uint64_t, uint64_t>> count_all_w_fmin;
-
     uint64_t kmer = 0;
     uint64_t start = 0;
     uint64_t end;
@@ -280,11 +301,12 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
     uint64_t I_start;
     tuple<uint64_t, uint64_t, uint64_t, uint64_t> curr_substr;
     for (end = 0; end < str_len; end++) {
+        //cerr << "end="<< to_string(end);
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
-            cerr << "Error: unknown character: " << c << endl;
-            cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
+           std::cerr << "Error: unknown character: " << c << endl;
+           std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
         } else {
             //const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
@@ -293,9 +315,12 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
             I = update_sbwt_interval(char_idx, I, Bit_rs, C);
             freq = (I.second - I.first + 1);
             I_start = I.first;
-            while (freq <= t) { // We found something
+           //cerr << " I_start=" << to_string(I_start)<< endl;
+           //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
+            if (freq <= t){
+                while (freq <= t){
                 curr_substr = {end - start + 1,freq, I_start, start};
-                all_fmin.insert(curr_substr);
+                //all_fmin.insert(curr_substr); // insert every unique substr
 
                 // Check window fmin
                 // 1. rarest (freq=1), 2. shortest
@@ -305,18 +330,28 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                 start++;
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
+               //cerr << "dropped I_start=" << to_string(I_start)<< endl;
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
+               //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
+            }
+            all_fmin.insert(curr_substr);
             }
         }
-        if (end >= k-1){
+        if (end > k){
+            count_all_w_fmin.insert({get<0>(w_fmin),get<1>(w_fmin), get<2>(w_fmin) });// (length,freq,colex)
+            //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<1>(w_fmin)),input.substr(get<3>(w_fmin),get<0>(w_fmin))},writer);
+            kmer++;
             // Check if the current minimizer is still in this window
             while (get<3>(w_fmin) < kmer) {
                 all_fmin.erase(all_fmin.begin());
-                w_fmin = *all_fmin.begin();
+                if (all_fmin.empty()){
+                    w_fmin={k+1,n_nodes,kmer+1,str_len};//place holder, will never be selected
+                }
+                else{ 
+                    w_fmin = *all_fmin.begin();
+                }
             }
-            count_all_w_fmin.insert({get<0>(w_fmin),get<1>(w_fmin), get<2>(w_fmin) });// (length,freq,colex)
-            kmer++;
         }
     }
     return count_all_w_fmin;
@@ -358,7 +393,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     vector<uint32_t> unitigs_k; // global offsets
     unitigs_k.reserve(n_nodes);
     unitigs_k.resize(n_nodes, 0);
-    vector<uint32_t> endpoints;
+    vector<uint64_t> endpoints;
     //sdsl::int_vector endpoints;
     if (type == "rarest"){
         while(true) {
@@ -372,9 +407,8 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             }
             id += len; //end point
             endpoints.push_back(id);// first char of the next string 
-
         }
-        cerr << to_string(id) << endl;
+       //cerr << to_string(id) << endl;
     } else if (type == "shortest") {
         while(true) {
             uint32_t len = reader.get_next_read_to_buffer();
@@ -409,10 +443,23 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     }
     tuple<string, string, string, string, string> stats = {to_string(t),to_string( new_number_of_fmin),to_string(sum_freq), to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)), to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) };
     std::ofstream outfile;
-    outfile.open(indexfile + "test.txt", std::ios_base::app); // append instead of overwrite
-    string results = to_string(new_number_of_fmin)+ "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin));
-    outfile << to_string(t) + "," + results + "\n";
-    //outfile.close();
+    string results = to_string(new_number_of_fmin) + "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq) / static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len) / static_cast<float>(new_number_of_fmin)) + "," + to_string(sbwt.number_of_kmers());
+
+    try {
+        outfile.open(indexfile + "test.txt", std::ios_base::app);
+        if (outfile.is_open()) {
+            outfile << to_string(t) + "," + results + "\n";
+            outfile.close();
+        } else {
+            std::cerr << "Error opening the file for writing." << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
+    // outfile.open(indexfile + "test.txt", std::ios_base::app); // append instead of overwrite
+    // string results = to_string(new_number_of_fmin)+ "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin));
+    // outfile << to_string(t) + "," + results + "\n";
+    // outfile.close();
     write_log(to_string(t) + "," +results, LogLevel::MAJOR);
     write_log("#SBWT nodes: " + to_string( n_nodes) , LogLevel::MAJOR);
     write_log("#Distinct finimizers: " + to_string( new_number_of_fmin) , LogLevel::MAJOR);
@@ -515,7 +562,7 @@ int build_fmin(int argc, char** argv) {
     auto opts = options.parse(argc, argv);
 
     if (old_argc == 1 || opts.count("help")) {
-        std::cerr << options.help() << std::endl;
+        std:://cerr << options.help() << std::endl;
         exit(1);
     }
     char t = opts["t"].as<uint64_t>();
@@ -545,7 +592,7 @@ int build_fmin(int argc, char** argv) {
     vector<string> variants = get_available_variants_fmin();
     string variant = load_string(in.stream); // read variant type
     if (std::find(variants.begin(), variants.end(), variant) == variants.end()) {
-        cerr << "Error loading index from file: unrecognized variant specified in the file" << endl;
+       //cerr << "Error loading index from file: unrecognized variant specified in the file" << endl;
         return 1;
     }
 
@@ -583,14 +630,15 @@ int build_fmin(int argc, char** argv) {
 
         string LCS_file = opts["lcs"].as<string>();
         if (LCS_file.empty()) {
-            std::cerr << "LCS_file empty" << std::endl;
+            std::cerr<< "LCS_file empty" << std::endl;
             LCS_file = indexfile + "LCS.sdsl";
             const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(sbwt, 8);
+            //const sdsl::int_vector<> LCS = lcs_basic_algorithm(sbwt);
             save_v(LCS_file, LCS);
         }
         sdsl::int_vector<> LCS;
         load_v(LCS_file, LCS);
-        std::cerr << "LCS_file loaded" << std::endl;
+        std::cerr<< "LCS_file loaded" << std::endl;
         fmin_search(input_files, outfile, indexfile, sbwt, DNA_rs, LCS,t, type, gzip_output);//DNA_bitvectors,
 
         return 0;
