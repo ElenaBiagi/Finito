@@ -95,10 +95,11 @@ Usage:
 ./benchmark search-fmin -o out-file  -q query-file.fa -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
 
 ```
-type has to be the same for both commands. The default type is "rarest", t=1. Selecting shortest the shortest finimizers is selected among those with frequency smaller than t. If t=1 then the two types are equivalent. 
+type has to be the same for both commands. The default type is "rarest", t=1. Selecting shortest the shortest finimizers is selected among those with frequency smaller than t. If t=1 then the two types are equivalent.
+Support for lookup queries is currently available only for "rarest".
 
-### Canonical unitigs
-Canonical unitigs are required as input to build the SBWT index. You can obtain canonical unitigs using [ggcat](https://github.com/algbio/ggcat).
+### Spectrum Preserving String Set (SPSS)
+A SPSS is required as input to build the SBWT index. You can obtain canonical unitigs using [ggcat](https://github.com/algbio/ggcat).
 
 ```
 ggcat build --min-multiplicity 1 -k 31 --output-file out.fna --threads-count 48 input.fna
