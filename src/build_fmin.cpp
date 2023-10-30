@@ -122,12 +122,12 @@ int64_t get_char_idx(char c){
     }
 }
 
-pair<int64_t,int64_t> update_sbwt_interval(char char_idx, const pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs, const vector<int64_t>& C){
+pair<int64_t,int64_t> update_sbwt_interval(const int64_t C_char, const pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs){
     if(I.first == -1) return I;
     pair<int64_t,int64_t> new_I;
     // both start and end are included
-    new_I.first = C[char_idx] + Bit_rs(I.first);
-    new_I.second = C[char_idx] + Bit_rs(I.second+1) -1;
+    new_I.first = C_char + Bit_rs(I.first);
+    new_I.second = C_char + Bit_rs(I.second+1) -1;
     if(new_I.first > new_I.second){
         //cerr << "start= " << to_string(new_I.first) << " end= "<< to_string(new_I.second) << endl;
         return {-1,-1}; // Not found
@@ -175,7 +175,7 @@ set<tuple<uint64_t,uint64_t, uint64_t>> verify_shortest_streaming_search( const 
                 char c = static_cast<char>(input[end] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
                 int64_t char_idx = get_char_idx(c);
                 const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
-                I = update_sbwt_interval(char_idx, I, Bit_rs, C);
+                I = update_sbwt_interval(C[char_idx], I, Bit_rs);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
                 if (freq <= t) { // We found something
@@ -224,7 +224,7 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
             //const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
             const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
             //update the sbwt INTERVAL
-            I = update_sbwt_interval(char_idx, I, Bit_rs, C);
+            I = update_sbwt_interval(C[char_idx], I, Bit_rs);
             freq = (I.second - I.first + 1);
             I_start = I.first;
            //cerr << " I_start=" << to_string(I_start)<< endl;
@@ -252,8 +252,8 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
                //cerr << "dropped I_start=" << to_string(I_start)<< endl;
                //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
 
-            }
-            all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<uint64_t>(I.first)});
+                }
+                all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<uint64_t>(I.first)});
             }
             
         }
@@ -312,7 +312,7 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
             //const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
             const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
             //update the sbwt INTERVAL
-            I = update_sbwt_interval(char_idx, I, Bit_rs, C);
+            I = update_sbwt_interval(C[char_idx], I, Bit_rs);
             freq = (I.second - I.first + 1);
             I_start = I.first;
            //cerr << " I_start=" << to_string(I_start)<< endl;
@@ -334,8 +334,8 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
                //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
-            }
-            all_fmin.insert(curr_substr);
+                }
+                all_fmin.insert(curr_substr);
             }
         }
         if (end > k){

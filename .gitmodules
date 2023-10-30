@@ -1,3 +1,6 @@
 [submodule "SBWT"]
 	path = SBWT
 	url = https://github.com/algbio/SBWT.git
+[submodule "kmer-lcs"]
+	path = kmer-lcs
+	url = https://github.com/jnalanko/kmer-lcs.git

@@ -129,13 +129,13 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
         } else {
             const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
             // 1) fmin interval
-            I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
+            I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
             // (1) Finimizer(subseq) NOT found
             // TODO We already know that no kmer will be found
             while(I_new.first == -1){
                 kmer_start = ++start;
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
-                I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
+                I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
                 I_kmer = I_new;
             }
             I = I_new;
@@ -144,12 +144,12 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
             // (2) Finimizer(subseq) freq > 0
             // Check if the Kmer interval has to be updated
             if ( start != kmer_start){
-                I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
+                I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
                 while(I_kmer_new.first == -1){
                     // kmer NOT found
                     kmer_start++;
                     I_kmer = drop_first_char(end - kmer_start, I_kmer, LCS, n_nodes);
-                    I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
+                    I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
                 } 
                 I_kmer = I_kmer_new;
             } else { 
@@ -217,13 +217,13 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
         } else {
             const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
             // 1) fmin interval
-            I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
+            I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
             // (1) Finimizer(subseq) NOT found
             // TODO We already know that no kmer will be found
             while(I_new.first == -1){
                 kmer_start = ++start;
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
-                I_new = update_sbwt_interval(char_idx, I, Bit_rs, C);
+                I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
                 I_kmer = I_new;
             }
             I = I_new;
@@ -232,21 +232,21 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
             // (2) Finimizer(subseq) freq > 0
             // Check if the Kmer interval has to be updated
             if ( start != kmer_start){
-                I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
+                I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
                 while(I_kmer_new.first == -1){
                     // kmer NOT found
                     kmer_start++;
                     I_kmer = drop_first_char(end - kmer_start, I_kmer, LCS, n_nodes);
-                    I_kmer_new = update_sbwt_interval(char_idx, I_kmer, Bit_rs, C);
+                    I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
                 } 
                 I_kmer = I_kmer_new;
             } else { 
                 I_kmer = I;
             }
             // (2b) Finimizer found
-            while (freq == 1) {
+            if (freq == 1){
+                while (freq == 1) {
                 curr_substr = {freq, end - start + 1, I_start, start};
-                all_fmin.insert(curr_substr);
                 // 1. rarest (freq=1), 2. shortest
                 if (w_fmin > curr_substr) {w_fmin = curr_substr;}
                 // 2. drop the first char
@@ -255,7 +255,10 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
+                }
+                all_fmin.insert(curr_substr);
             }
+            
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
@@ -277,7 +280,6 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
-    
     const uint64_t k = sbwt.get_k();
 
     int64_t total_micros = 0;
@@ -320,7 +322,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
     std::ofstream statsfile;
     statsfile.open(indexfile + "stats.txt", std::ios_base::app); // append instead of overwrite
     statsfile << to_string(k) + "," + to_string(kmers_count+kmers_count_rev) + "," + to_string(number_of_queries);
-    //statsfile.close();
+    statsfile.close();
     return number_of_queries;
 }
 
