@@ -129,49 +129,44 @@ pair<int64_t,int64_t> update_sbwt_interval(const int64_t C_char, const pair<int6
     new_I.first = C_char + Bit_rs(I.first);
     new_I.second = C_char + Bit_rs(I.second+1) -1;
     if(new_I.first > new_I.second){
-        //cerr << "start= " << to_string(new_I.first) << " end= "<< to_string(new_I.second) << endl;
         return {-1,-1}; // Not found
     } 
     return new_I;
 }
 
-pair<int64_t,int64_t> drop_first_char(const uint64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const uint64_t n_nodes){
-    //cerr << "enter drop_first_char, new_len="<< to_string(new_len)<< endl;
+pair<int64_t,int64_t> drop_first_char(const int64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const int64_t n_nodes){
     if(I.first == -1) return I;
     pair<int64_t,int64_t> new_I = I;
     //Check top and bottom w the LCS
-    //cerr << "LCS["<<to_string(new_I.first)<<"]= "<< to_string(LCS[new_I.first]);
     while (LCS[new_I.first] >= new_len ){new_I.first --;}
-    //cerr << "  LCS["<< to_string(I.second + 1)<<"]= " << to_string(LCS[new_I.second + 1]);
     while(new_I.second < (n_nodes - 1) && LCS[new_I.second + 1] >= new_len ){
         new_I.second ++;
     }
-    //cerr << " EXIT!"<< endl;
     return {new_I};
 }
 
 template<typename writer_t>
-set<tuple<uint64_t,uint64_t, uint64_t>> verify_shortest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const string& input, const char t, writer_t& writer) {
-    const uint64_t n_nodes = sbwt.number_of_subsets();
-    const uint64_t k = sbwt.get_k();
+set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const string& input, const char t, writer_t& writer) {
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const int64_t k = sbwt.get_k();
     const vector<int64_t> &C = sbwt.get_C_array();
-    uint64_t freq;    
-    const uint64_t str_len = input.size();
-    tuple<uint64_t,uint64_t, uint64_t, uint64_t> w_fmin = {k + 1, n_nodes, n_nodes, str_len}; // {len, freq, I start, start}
-    tuple<uint64_t,uint64_t, uint64_t, uint64_t> new_fmin; // {len, freq, I start, start}
+    int64_t freq;    
+    const int64_t str_len = input.size();
+    tuple<int64_t,int64_t, int64_t, int64_t> w_fmin = {k + 1, n_nodes, n_nodes, str_len}; // {len, freq, I start, start}
+    tuple<int64_t,int64_t, int64_t, int64_t> new_fmin; // {len, freq, I start, start}
 
-    set<tuple<uint64_t,uint64_t,uint64_t>> count_all_w_fmin;
+    set<tuple<int64_t,int64_t,int64_t>> count_all_w_fmin;
 
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
-    uint64_t I_start;
+    int64_t I_start;
     // window
-    for (uint64_t i = 0; i <= str_len - k; i++) {
+    for (int64_t i = 0; i <= str_len - k; i++) {
         w_fmin = {k + 1, n_nodes, n_nodes, str_len}; // {len, freq, I start, start}
         // starting pos for the window
-        for (uint64_t start = i; start < k + i; start ++){
+        for (int64_t start = i; start < k + i; start ++){
             I = {0, n_nodes - 1};
             // ending pos for the window
-            for (uint64_t end = start; end < k + i; end++) {
+            for (int64_t end = start; end < k + i; end++) {
                 char c = static_cast<char>(input[end] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
                 int64_t char_idx = get_char_idx(c);
                 const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
@@ -179,7 +174,7 @@ set<tuple<uint64_t,uint64_t, uint64_t>> verify_shortest_streaming_search( const 
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
                 if (freq <= t) { // We found something
-                    new_fmin = {end - start + 1, freq, I_start, start};
+                    new_fmin = {end - start + 1, freq, I_start, end-k +1};
                     if (new_fmin < w_fmin) { w_fmin = new_fmin; }
                 }
             }
@@ -191,23 +186,22 @@ set<tuple<uint64_t,uint64_t, uint64_t>> verify_shortest_streaming_search( const 
 }
 
 template<typename writer_t>
-set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer, sdsl::bit_vector& fmin_bv, vector<uint32_t>& unitigs_k, const uint64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
-    const uint64_t n_nodes = sbwt.number_of_subsets();
-    const uint64_t k = sbwt.get_k();
+set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer, sdsl::bit_vector& fmin_bv, vector<uint32_t>& unitigs_k, const int64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
-    uint64_t freq;
-    set<tuple<uint64_t, uint64_t, uint64_t, uint64_t>> all_fmin;
-    const uint64_t str_len = input.size();
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
-    //vector<tuple<uint64_t, uint64_t, uint64_t, uint64_t>> all_w_fmin;
-    set<tuple<uint64_t,uint64_t, uint64_t>> count_all_w_fmin;
+    int64_t freq;
+    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    const int64_t str_len = input.size();
+    tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
+    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
 
-    uint64_t kmer = 0;
-    uint64_t start = 0;
-    uint64_t end;
+    int64_t kmer = 0;
+    int64_t start = 0;
+    int64_t end;
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
-    uint64_t I_start;
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> curr_substr;
+    int64_t I_start;
+    tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
     //string writer = "rarest_";
     // the idea is to start from the first pos which is i and move until finding something of ok freq
     // then drop the first char keeping track of which char you are starting from
@@ -227,33 +221,18 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
             I = update_sbwt_interval(C[char_idx], I, Bit_rs);
             freq = (I.second - I.first + 1);
             I_start = I.first;
-           //cerr << " I_start=" << to_string(I_start)<< endl;
-           //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
-            if (freq == 1){
-                while (freq == 1) { // We found something
-                curr_substr = {freq, end - start + 1, I_start, start};
-                //all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<uint64_t>(I.first)});
-
-                // Check window fmin
-                // 1. rarest (freq=1), 2. shortest
-                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
-
+            if (freq == 1){ // 1. rarest 
+                while (freq == 1) {  //2. shortest
+                curr_substr = {freq, end - start + 1, I_start, end-k +1};
                 // (2) drop the first char
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                 start++;
-                // todo check if it is necessary to ensure that start is always <= end or if it is so by construction as if start==end than the freq is >>1
-                if (start > end)[[unlikely]] { //todo check if by saying start++ here start increases
-                    break;
-                }
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
-
-               //cerr << "dropped I_start=" << to_string(I_start)<< endl;
-               //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
-
                 }
-                all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<uint64_t>(I.first)});
+                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
+                all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<int64_t>(I.first)});
             }
             
         }
@@ -285,23 +264,22 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_rarest_streaming_search( const sds
 }
 
 template<typename writer_t>
-set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
-    const uint64_t n_nodes = sbwt.number_of_subsets();
-    const uint64_t k = sbwt.get_k();
+set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
-    uint64_t freq;
-    set<tuple<uint64_t, uint64_t, uint64_t, uint64_t>> all_fmin;
-    const uint64_t str_len = input.size();
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> w_fmin = {k+2,n_nodes,n_nodes,str_len}; // {len, freq, I start, start}
-    set<tuple<uint64_t,uint64_t, uint64_t>> count_all_w_fmin;
-    uint64_t kmer = 0;
-    uint64_t start = 0;
-    uint64_t end;
+    int64_t freq;
+    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    const int64_t str_len = input.size();
+    tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {k+2,n_nodes,n_nodes,str_len}; // {len, freq, I start, start}
+    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
+    int64_t kmer = 0;
+    int64_t start = 0;
+    int64_t end;
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
-    uint64_t I_start;
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> curr_substr;
+    int64_t I_start;
+    tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
     for (end = 0; end < str_len; end++) {
-        //cerr << "end="<< to_string(end);
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -315,26 +293,21 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
             I = update_sbwt_interval(C[char_idx], I, Bit_rs);
             freq = (I.second - I.first + 1);
             I_start = I.first;
-           //cerr << " I_start=" << to_string(I_start)<< endl;
-           //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
-            if (freq <= t){
-                while (freq <= t){
-                curr_substr = {end - start + 1,freq, I_start, start};
-                //all_fmin.insert(curr_substr); // insert every unique substr
 
-                // Check window fmin
-                // 1. rarest (freq=1), 2. shortest
-                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
+            if (freq <= t){ // 1. rarest
+                while (freq <= t){ // 2. shortest
+                curr_substr = {end - start + 1,freq, I_start, end-k +1};
+                //all_fmin.insert(curr_substr); // insert every unique substr
 
                 // (2) drop the first char
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                 start++;
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
-               //cerr << "dropped I_start=" << to_string(I_start)<< endl;
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
                //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
                 }
+                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
                 all_fmin.insert(curr_substr);
             }
         }
@@ -357,11 +330,11 @@ set<tuple<uint64_t,uint64_t, uint64_t>> build_shortest_streaming_search( const s
     return count_all_w_fmin;
 }
 
-vector<string> remove_ns(const string& unitig, const uint64_t k){
+vector<string> remove_ns(const string& unitig, const int64_t k){
     vector<string> new_unitigs;
-    const uint64_t str_len = unitig.size();
-    uint64_t start = 0;
-    for (uint64_t i = 0; i < str_len;i++){
+    const int64_t str_len = unitig.size();
+    int64_t start = 0;
+    for (int64_t i = 0; i < str_len;i++){
         char c = static_cast<char>(unitig[i] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]] {
@@ -383,17 +356,17 @@ template<typename sbwt_t, typename reader_t, typename writer_t>
 sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
     int64_t new_number_of_fmin = 0;
     
-    set<tuple<uint64_t, uint64_t, uint64_t>> new_search;
-    set<tuple<uint64_t, uint64_t, uint64_t>>  finimizers;
-    const uint64_t k = sbwt.get_k();
+    set<tuple<int64_t, int64_t, int64_t>> new_search;
+    set<tuple<int64_t, int64_t, int64_t>>  finimizers;
+    const int64_t k = sbwt.get_k();
 
-    uint64_t id = 0;
-    uint64_t n_nodes = sbwt.number_of_subsets();
+    int64_t id = 0;
+    int64_t n_nodes = sbwt.number_of_subsets();
     sdsl::bit_vector fmin_bv(n_nodes);
     vector<uint32_t> unitigs_k; // global offsets
     unitigs_k.reserve(n_nodes);
     unitigs_k.resize(n_nodes, 0);
-    vector<uint64_t> endpoints;
+    vector<int64_t> endpoints;
     //sdsl::int_vector endpoints;
     if (type == "rarest"){
         while(true) {
@@ -434,8 +407,8 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     }
     // (length,freq,colex)
     new_number_of_fmin = finimizers.size();
-    uint64_t sum_freq = 0;
-    uint64_t sum_len = 0;
+    int64_t sum_freq = 0;
+    int64_t sum_len = 0;
     for (auto x : finimizers){
         sum_freq += get<1>(x);
         sum_len += get<0>(x);
@@ -470,14 +443,14 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     if(type == "rarest"){
         // endpoints
         sdsl::int_vector<> endpoints_v(endpoints.size(), 0, 64-__builtin_clzll(id));
-        for (uint64_t x = 0; x < endpoints.size(); x++){
+        for (int64_t x = 0; x < endpoints.size(); x++){
             endpoints_v[x]=endpoints[x];
         }
 
         // global offsets
         sdsl::int_vector<> unitigs_v(new_number_of_fmin, 0, 64 - __builtin_clzll(id));
-        uint64_t j=0;
-        for (uint64_t i = 0; i < n_nodes; i++){
+        int64_t j=0;
+        for (int64_t i = 0; i < n_nodes; i++){
             if (fmin_bv[i] == 1){
                 unitigs_v[j] = unitigs_k[i];
                 j++;
@@ -554,7 +527,7 @@ int build_fmin(int argc, char** argv) {
              "Writes output in gzipped form. This can shrink the output files by an order of magnitude.",
              cxxopts::value<bool>()->default_value("false"))
             ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
-            ("t", "Maximum finimizer frequency", cxxopts::value<uint64_t>())
+            ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
             ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
             ("h,help", "Print usage");
 
@@ -565,7 +538,7 @@ int build_fmin(int argc, char** argv) {
         std:://cerr << options.help() << std::endl;
         exit(1);
     }
-    char t = opts["t"].as<uint64_t>();
+    char t = opts["t"].as<int64_t>();
 
     // input files
     string in_file = opts["in-file"].as<string>();

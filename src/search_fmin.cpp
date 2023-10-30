@@ -97,23 +97,23 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
 
-pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
-    const uint64_t n_nodes = sbwt.number_of_subsets();
-    const uint64_t k = sbwt.get_k();
+pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
-    uint64_t freq;
-    set<tuple<uint64_t, uint64_t, uint64_t, uint64_t>> all_fmin;
-    const uint64_t str_len = input.size();
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
+    int64_t freq;
+    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    const int64_t str_len = input.size();
+    tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
     
-    uint64_t count = 0;
-    uint64_t start = 0;
-    uint64_t end;
-    uint64_t kmer_start = 0;
+    int64_t count = 0;
+    int64_t start = 0;
+    int64_t end;
+    int64_t kmer_start = 0;
     pair<int64_t, int64_t> I = {0, n_nodes - 1}, I_kmer = {0, n_nodes - 1};
     pair<int64_t, int64_t> I_new, I_kmer_new;
-    uint64_t I_start;
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> curr_substr;
+    int64_t I_start;
+    tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
     
     // the idea is to start from the first pos which is i and move until finding something of ok freq
     // then drop the first char keeping track of which char you are starting from
@@ -156,18 +156,20 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
                 I_kmer = I;
             }
             // (2b) Finimizer found
-            while (freq == 1) {
-                curr_substr = {freq, end - start + 1, I_start, start};
-                all_fmin.insert(curr_substr);
-                // 1. rarest (freq=1), 2. shortest
+            if (freq ==1){ // 1. rarest
+                while (freq == 1) { // 2. shortest
+                    curr_substr = {freq, end - start + 1, I_start, end - k + 1};
+                    // 2. drop the first char
+                    // When you drop the first char you are sure to find x_2..m since you found x_1..m before
+                    start ++;
+                    I = drop_first_char(end - start + 1, I, LCS, n_nodes);
+                    freq = (I.second - I.first + 1);
+                    I_start = I.first;
+                }
                 if (w_fmin > curr_substr) {w_fmin = curr_substr;}
-                // 2. drop the first char
-                // When you drop the first char you are sure to find x_2..m since you found x_1..m before
-                start ++;
-                I = drop_first_char(end - start + 1, I, LCS, n_nodes);
-                freq = (I.second - I.first + 1);
-                I_start = I.first;
+                all_fmin.insert(curr_substr);
             }
+            
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
@@ -175,7 +177,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
                     all_fmin.erase(all_fmin.begin());
                     w_fmin = *all_fmin.begin();
                 }
-                found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]-(get<3>(w_fmin) - kmer_start);
+                found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]+(get<3>(w_fmin) - kmer_start);
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
@@ -185,23 +187,23 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search( const sdsl::rank_s
     }
     return {found_kmers, count};
 }
-pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
-    const uint64_t n_nodes = sbwt.number_of_subsets();
-    const uint64_t k = sbwt.get_k();
+pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
-    uint64_t freq;
-    set<tuple<uint64_t, uint64_t, uint64_t, uint64_t>> all_fmin;
-    const uint64_t str_len = input.size();
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
+    int64_t freq;
+    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    const int64_t str_len = input.size();
+    tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
     
-    uint64_t count = 0;
-    uint64_t start = 0;
-    uint64_t end;
-    uint64_t kmer_start = 0, rev_start;
+    int64_t count = 0;
+    int64_t start = 0;
+    int64_t end;
+    int64_t kmer_start = 0, rev_start;
     pair<int64_t, int64_t> I = {0, n_nodes - 1}, I_kmer = {0, n_nodes - 1};
     pair<int64_t, int64_t> I_new, I_kmer_new;
-    uint64_t I_start;
-    tuple<uint64_t, uint64_t, uint64_t, uint64_t> curr_substr;
+    int64_t I_start;
+    tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
     
     // the idea is to start from the first pos which is i and move until finding something of ok freq
     // then drop the first char keeping track of which char you are starting from
@@ -244,18 +246,17 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
                 I_kmer = I;
             }
             // (2b) Finimizer found
-            if (freq == 1){
-                while (freq == 1) {
-                curr_substr = {freq, end - start + 1, I_start, start};
-                // 1. rarest (freq=1), 2. shortest
-                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
-                // 2. drop the first char
-                // When you drop the first char you are sure to find x_2..m since you found x_1..m before
-                start ++;
-                I = drop_first_char(end - start + 1, I, LCS, n_nodes);
-                freq = (I.second - I.first + 1);
-                I_start = I.first;
+            if (freq == 1){ // 1. rarest 
+                while (freq == 1) { // 2. shortest
+                    curr_substr = {freq, end - start + 1, I_start, end - k + 1};
+                    // 2. drop the first char
+                    // When you drop the first char you are sure to find x_2..m since you found x_1..m before
+                    start ++;
+                    I = drop_first_char(end - start + 1, I, LCS, n_nodes);
+                    freq = (I.second - I.first + 1);
+                    I_start = I.first;
                 }
+                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
                 all_fmin.insert(curr_substr);
             }
             
@@ -267,7 +268,7 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
                     w_fmin = *all_fmin.begin();
                 }
                 rev_start = str_len - (kmer_start + k);
-                found_kmers[rev_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]-(get<3>(w_fmin) - rev_start);
+                found_kmers[rev_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]+(get<3>(w_fmin) - rev_start);
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
@@ -280,11 +281,11 @@ pair<vector<int64_t>, uint64_t> rarest_fmin_streaming_search_r( const sdsl::rank
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
-    const uint64_t k = sbwt.get_k();
+    const int64_t k = sbwt.get_k();
 
     int64_t total_micros = 0;
     int64_t number_of_queries = 0;
-    uint64_t kmers_count = 0 , count, count_rev, kmers_count_rev = 0;
+    int64_t kmers_count = 0 , count, count_rev, kmers_count_rev = 0;
     vector<int64_t> out_buffer, out_buffer_rev;
     //found_kmers.reserve(str_len - k + 1);
     //found_kmers.resize(str_len - k + 1); 
@@ -296,7 +297,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
         
         int64_t t0 = cur_time_micros();
         vector<int64_t> found_kmers(len - k + 1,-1);
-        pair<vector<int64_t>, uint64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
+        pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
         out_buffer = final_pair.first;
         count = final_pair.second;
         number_of_queries += out_buffer.size();
@@ -420,7 +421,7 @@ int search_fmin(int argc, char** argv){
         ("i,index-file", "Index input file.This has to be a binary matrix.", cxxopts::value<string>())
         ("q,query-file", "The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.", cxxopts::value<string>())
         ("z,gzip-output", "Writes output in gzipped form. This can shrink the output files by an order of magnitude.", cxxopts::value<bool>()->default_value("false"))
-        ("t", "Maximum finimizer frequency", cxxopts::value<uint64_t>())
+        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
         ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string,cxxopts::value<string>()->default_value("rarest"))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("f, fmin_bv", "Provide in input the finimizers binary kmers vector.", cxxopts::value<string>()->default_value(""))
@@ -437,7 +438,7 @@ int search_fmin(int argc, char** argv){
         exit(1);
     }
 
-    char t = opts["t"].as<uint64_t>();
+    char t = opts["t"].as<int64_t>();
 
     // TODO add type, only rarest now
     string type = opts["type"].as<string>();
