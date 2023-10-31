@@ -249,7 +249,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
             //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
-            while (get<3>(w_fmin) < kmer) {
+            while ((get<3>(w_fmin)+k-get<1>(w_fmin)) < kmer) { // start
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
                     w_fmin={n_nodes,k+1,kmer+1,str_len};
@@ -316,7 +316,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl
             //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<1>(w_fmin)),input.substr(get<3>(w_fmin),get<0>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
-            while (get<3>(w_fmin) < kmer) {
+            while ((get<3>(w_fmin)+k-get<1>(w_fmin)) < kmer) {
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
                     w_fmin={k+1,n_nodes,kmer+1,str_len};//place holder, will never be selected
