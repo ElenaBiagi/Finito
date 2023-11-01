@@ -548,7 +548,7 @@ void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_rea
 
         unitig_id++;
         total_unitig_length += unitigs.size();
-        max_unitig_length = unitigs.back().size();
+        max_unitig_length = max(max_unitig_length, unitigs.back().size());
     }
 
     std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
@@ -558,7 +558,7 @@ void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_rea
     }
 
     sdsl::bit_vector Ustart(sbwt.number_of_subsets(), 0);
-    for(int64_t i = 0; i < first_kmers.size(); i++){
+    for(int64_t i = 0; i < unitigs.size(); i++){
         int64_t colex = sbwt.search(unitigs[i].substr(0, k));
         Ustart[colex] = 1;
     }
