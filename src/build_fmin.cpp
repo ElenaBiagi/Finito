@@ -506,29 +506,66 @@ int64_t fmin_search(const vector<string>& infiles, const string& outfile, const 
 
 }
 
-// Returns the concatenated unitigs packed to 2 bits each, and the endpoint bit vector. The endpoints
-// are one past the end.
-pair<sdsl::int_vector<2>, sdsl::int_vector<>> pack_unitigs(const vector<string>& unitigs, const vector<int64_t>& permutation, int64_t total_length, int64_t max_length){
-    sdsl::int_vector<2> concat(total_length);
-    sdsl::int_vector<> endpoints(unitigs.size(), 64 - __builtin_clzll(max_length));
-    int64_t i = 0;
-    int64_t end = 0;
-    for(int64_t unitig_idx : permutation){
-        const string& unitig = unitigs[unitig_idx];
-        for(char c : unitig){
-            switch(c){
-                case 'A': concat[i++] = 0; break;
-                case 'C': concat[i++] = 1; break;
-                case 'G': concat[i++] = 2; break;
-                case 'T': concat[i++] = 3; break;
-                default: throw std::runtime_error("Invalid character: " + c);
-            }
+class PackedStrings{
+    public:
+    sdsl::int_vector<2> concat;
+    sdsl::int_vector<> ends;
+
+    // Concatenates the strings according to the given permutation
+    PackedStrings(const vector<string>& strings, const vector<int64_t>& permutation){
+        int64_t total_length = 0;
+        int64_t max_length = 0;
+        for(const string& S : strings){
+            total_length += S.size();
+            max_length = max((int64_t)S.size(), max_length);
         }
-        end += unitig.size();
-        endpoints[unitig_idx] = end;
+
+        this->concat = sdsl::int_vector<2>(total_length);
+        this->ends = sdsl::int_vector<>(strings.size(), 64 - __builtin_clzll(max_length));
+
+        int64_t i = 0;
+        int64_t end = 0;
+        for(int64_t string_idx : permutation){
+            const string& S = strings[string_idx];
+            for(char c : S){
+                switch(c){
+                    case 'A': concat[i++] = 0; break;
+                    case 'C': concat[i++] = 1; break;
+                    case 'G': concat[i++] = 2; break;
+                    case 'T': concat[i++] = 3; break;
+                    default: throw std::runtime_error("Invalid character: " + c);
+                }
+            }
+            end += S.size();
+            ends[string_idx] = end;
+        }
     }
-    return {concat, endpoints};
-}
+
+    // Clears the given buffer and stores string with index string_idx into it,
+    // including a null-terminator. Returns the length of the stored string,
+    // not counting the null.
+    int64_t get(int64_t string_idx, vector<char>& buffer) const{
+        assert(string_idx < ends.size());
+        int64_t start = 0;
+        if(string_idx > 0) start = ends[string_idx-1];
+
+        int64_t end = ends[string_idx]; // Exclusive end
+        int64_t len = end - start;
+
+        buffer.clear();
+        for(int64_t i = 0; i < len; i++){
+            buffer.push_back(concat[start+i]);
+        }
+        buffer.push_back(0);
+
+        return len;
+    }
+
+    int64_t number_of_strings() const{
+        return ends.size();
+    }
+};
+
 
 template <typename reader_t>
 void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_reader, const string& index_prefix){
@@ -537,8 +574,6 @@ void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_rea
     vector<string> unitigs;
 
     int64_t unitig_id = 0;
-    int64_t total_unitig_length = 0;
-    int64_t max_unitig_length = 0;
     while(true){
         int64_t len = unitig_reader.get_next_read_to_buffer();
         if(len == 0) [[unlikely]] break;
@@ -547,8 +582,6 @@ void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_rea
         first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(unitigs.back(), k), unitig_id});
 
         unitig_id++;
-        total_unitig_length += unitigs.size();
-        max_unitig_length = max(max_unitig_length, unitigs.back().size());
     }
 
     std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
@@ -563,15 +596,13 @@ void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_rea
         Ustart[colex] = 1;
     }
 
-    sdsl::int_vector<2> packed_unitigs;
-    sdsl::int_vector<> endpoints;
-    std::tie(packed_unitigs, endpoints) = pack_unitigs(unitigs, permutation, total_unitig_length, max_unitig_length);
+    PackedStrings PS = PackedStrings(unitigs, permutation);
 
     std::ofstream packed_unitigs_out(index_prefix + "packed_unitigs.sdsl");
-    sdsl::serialize(packed_unitigs, packed_unitigs_out);
+    sdsl::serialize(PS.concat, packed_unitigs_out);
     
     std::ofstream unitig_endpoints_out(index_prefix + "unitig_endpoints.sdsl");
-    sdsl::serialize(endpoints, unitig_endpoints_out);
+    sdsl::serialize(PS.ends, unitig_endpoints_out);
 
     std::ofstream Ustart_out(index_prefix + "Ustart.sdsl");
     sdsl::serialize(Ustart, Ustart_out);
