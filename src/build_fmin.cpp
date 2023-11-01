@@ -13,6 +13,7 @@
 #include "sbwt/stdlib_printing.hh"
 #include "sbwt/SeqIO.hh"
 #include "sbwt/buffered_streams.hh"
+#include "PackedStrings.hh"
 #include <vector>
 #include <utility>
 #include <algorithm>
@@ -21,12 +22,16 @@
 #include "sdsl/int_vector.hpp"
 #include "sdsl/bit_vectors.hpp"
 #include "sbwt/commands.hh"
+#include "sbwt/Kmer.hh"
 #include "sbwt/suffix_group_optimization.hh"
 #include "lcs_basic_parallel_algorithm.hpp"
 //#include "lcs_basic_algorithm.hpp"
 
 using namespace std;
 using namespace sbwt;
+
+
+
 
 std::vector<std::string> get_available_variants_fmin(){
     // This currently works only with the plain matrix representation
@@ -112,7 +117,7 @@ void write_csv(const tuple<string, string, string, string,string>& p, writer_t& 
     out.write(&newline, 1);
 }
 
-int64_t get_char_idx(char c){
+char get_char_idx(char c){
     switch(c){
         case 'A': return 0;
         case 'C': return 1;
@@ -159,6 +164,8 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sds
 
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
     int64_t I_start;
+    char c;
+    char char_idx;
     // window
     for (int64_t i = 0; i <= str_len - k; i++) {
         w_fmin = {k + 1, n_nodes, n_nodes, str_len}; // {len, freq, I start, start}
@@ -167,8 +174,8 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sds
             I = {0, n_nodes - 1};
             // ending pos for the window
             for (int64_t end = start; end < k + i; end++) {
-                char c = static_cast<char>(input[end] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-                int64_t char_idx = get_char_idx(c);
+                c = static_cast<char>(input[end] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+                char_idx = get_char_idx(c);
                 const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
                 I = update_sbwt_interval(C[char_idx], I, Bit_rs);
                 freq = (I.second - I.first + 1);
@@ -202,14 +209,16 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
     int64_t I_start;
     tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
+    char c;
+    char char_idx;
     //string writer = "rarest_";
     // the idea is to start from the first pos which is i and move until finding something of ok freq
     // then drop the first char keeping track of which char you are starting from
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
-        char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-        int64_t char_idx = get_char_idx(c);
+        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+        char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
            std::cerr << "Error: unknown character: " << c << endl;
            std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
@@ -279,9 +288,11 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
     int64_t I_start;
     tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
+    char c;
+    char char_idx;
     for (end = 0; end < str_len; end++) {
-        char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
-        int64_t char_idx = get_char_idx(c);
+        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
+        char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
            std::cerr << "Error: unknown character: " << c << endl;
            std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
@@ -334,9 +345,11 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
     vector<string> new_unitigs;
     const int64_t str_len = unitig.size();
     int64_t start = 0;
+    char c;
+    char char_idx;
     for (int64_t i = 0; i < str_len;i++){
-        char c = static_cast<char>(unitig[i] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-        int64_t char_idx = get_char_idx(c);
+        c = static_cast<char>(unitig[i] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+        char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]] {
             if ((i - start + 1) >= k ){
                 string new_seq = unitig.substr(start,(i - start + 1));
@@ -355,7 +368,11 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
 template<typename sbwt_t, typename reader_t, typename writer_t>
 sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
     int64_t new_number_of_fmin = 0;
-    
+
+    pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(sbwt, reader, indexfile);
+    PackedStrings& unitigs = unitig_data.first;
+    sdsl::bit_vector& Ustart = unitig_data.second;
+
     set<tuple<int64_t, int64_t, int64_t>> new_search;
     set<tuple<int64_t, int64_t, int64_t>>  finimizers;
     const int64_t k = sbwt.get_k();
@@ -367,13 +384,14 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     unitigs_k.reserve(n_nodes);
     unitigs_k.resize(n_nodes, 0);
     vector<int64_t> endpoints;
+    vector<char> read_buf;
     //sdsl::int_vector endpoints;
     if (type == "rarest"){
-        while(true) {
-            uint32_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
+            uint32_t len = unitigs.get(unitig_idx, read_buf);
+            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
+                cout << seq << endl;
                 new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
@@ -383,10 +401,9 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
         }
        //cerr << to_string(id) << endl;
     } else if (type == "shortest") {
-        while(true) {
-            uint32_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
+            uint32_t len = unitigs.get(unitig_idx, read_buf);
+            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
                 new_number_of_fmin += new_search.size();
@@ -394,10 +411,9 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             }    
         }
     } else if (type == "verify"){
-        while(true) {
-            int32_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
+            uint32_t len = unitigs.get(unitig_idx, read_buf);
+            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 new_search = verify_shortest_streaming_search(DNA_rs, sbwt ,seq, t, writer);
                 new_number_of_fmin += new_search.size();
@@ -460,6 +476,15 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
         save_v(indexfile + "O.sdsl", unitigs_v);
         save_v(indexfile + "E.sdsl", endpoints_v);
         save_bv(indexfile + "FBV.sdsl", fmin_bv);
+
+        std::ofstream packed_unitigs_out(indexfile + "packed_unitigs.sdsl");
+        sdsl::serialize(unitigs.concat, packed_unitigs_out);
+        
+        std::ofstream unitig_endpoints_out(indexfile + "unitig_endpoints.sdsl");
+        sdsl::serialize(unitigs.ends, unitig_endpoints_out);
+
+        std::ofstream Ustart_out(indexfile + "Ustart.sdsl");
+        sdsl::serialize(Ustart, Ustart_out);
     }
     
     return fmin_bv;
@@ -614,6 +639,6 @@ int build_fmin(int argc, char** argv) {
         std::cerr<< "LCS_file loaded" << std::endl;
         fmin_search(input_files, outfile, indexfile, sbwt, DNA_rs, LCS,t, type, gzip_output);//DNA_bitvectors,
 
-        return 0;
     }
+    return 0;
 }
