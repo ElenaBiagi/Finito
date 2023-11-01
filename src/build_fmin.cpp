@@ -243,7 +243,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
                 if (w_fmin > curr_substr) {w_fmin = curr_substr;}
                 all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<int64_t>(I.first)});
             }
-            
+
         }
         if (end > k){
             size_t old_fmin_count = count_all_w_fmin.size();
@@ -316,7 +316,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
-               //cerr << input.substr(start,end-start+1) << " freq=" << to_string(freq) << endl;
                 }
                 if (w_fmin > curr_substr) {w_fmin = curr_substr;}
                 all_fmin.insert(curr_substr);
@@ -391,7 +390,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             uint32_t len = unitigs.get(unitig_idx, read_buf);
             vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
-                cout << seq << endl;
+                //cout << seq << endl;
                 new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
@@ -399,7 +398,6 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             id += len; //end point
             endpoints.push_back(id);// first char of the next string 
         }
-       //cerr << to_string(id) << endl;
     } else if (type == "shortest") {
         for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
             uint32_t len = unitigs.get(unitig_idx, read_buf);
@@ -560,7 +558,7 @@ int build_fmin(int argc, char** argv) {
     auto opts = options.parse(argc, argv);
 
     if (old_argc == 1 || opts.count("help")) {
-        std:://cerr << options.help() << std::endl;
+        std::cerr << options.help() << std::endl;
         exit(1);
     }
     char t = opts["t"].as<int64_t>();
@@ -590,7 +588,7 @@ int build_fmin(int argc, char** argv) {
     vector<string> variants = get_available_variants_fmin();
     string variant = load_string(in.stream); // read variant type
     if (std::find(variants.begin(), variants.end(), variant) == variants.end()) {
-       //cerr << "Error loading index from file: unrecognized variant specified in the file" << endl;
+       cerr << "Error loading index from file: unrecognized variant specified in the file" << endl;
         return 1;
     }
 
