@@ -29,6 +29,103 @@
 using namespace std;
 using namespace sbwt;
 
+class PackedStrings{
+    public:
+    sdsl::int_vector<2> concat;
+    sdsl::int_vector<> ends;
+
+    // Concatenates the strings according to the given permutation
+    PackedStrings(const vector<string>& strings, const vector<int64_t>& permutation){
+        int64_t total_length = 0;
+        int64_t max_length = 0;
+        for(const string& S : strings){
+            total_length += S.size();
+            max_length = max((int64_t)S.size(), max_length);
+        }
+
+        this->concat = sdsl::int_vector<2>(total_length);
+        this->ends = sdsl::int_vector<>(strings.size(), 64 - __builtin_clzll(max_length));
+
+        int64_t i = 0;
+        int64_t end = 0;
+        for(int64_t string_idx : permutation){
+            const string& S = strings[string_idx];
+            for(char c : S){
+                switch(c){
+                    case 'A': concat[i++] = 0; break;
+                    case 'C': concat[i++] = 1; break;
+                    case 'G': concat[i++] = 2; break;
+                    case 'T': concat[i++] = 3; break;
+                    default: throw std::runtime_error("Invalid character: " + c);
+                }
+            }
+            end += S.size();
+            ends[string_idx] = end;
+        }
+    }
+
+    // Clears the given buffer and stores string with index string_idx into it,
+    // including a null-terminator. Returns the length of the stored string,
+    // not counting the null.
+    int64_t get(int64_t string_idx, vector<char>& buffer) const{
+        assert(string_idx < ends.size());
+        int64_t start = 0;
+        if(string_idx > 0) start = ends[string_idx-1];
+
+        int64_t end = ends[string_idx]; // Exclusive end
+        int64_t len = end - start;
+
+        buffer.clear();
+        for(int64_t i = 0; i < len; i++){
+            buffer.push_back(concat[start+i]);
+        }
+        buffer.push_back(0);
+
+        return len;
+    }
+
+    int64_t number_of_strings() const{
+        return ends.size();
+    }
+};
+
+// Returns packed unitigs and the Ustart bit vector
+template <typename reader_t>
+pair<PackedStrings, sdsl::bit_vector> permute_unitigs(const plain_matrix_sbwt_t& sbwt, reader_t& unitig_reader, const string& index_prefix){
+    int64_t k = sbwt.get_k();
+    vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> first_kmers; // pairs (kmer, unitig id)
+    vector<string> unitigs;
+
+    int64_t unitig_id = 0;
+    while(true){
+        int64_t len = unitig_reader.get_next_read_to_buffer();
+        if(len == 0) [[unlikely]] break;
+
+        unitigs.push_back(unitig_reader.read_buf);
+        first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(unitigs.back().c_str(), k), unitig_id});
+
+        unitig_id++;
+    }
+
+    std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
+    vector<int64_t> permutation;
+    for(auto& P : first_kmers){
+        permutation.push_back(P.second);
+    }
+
+    sdsl::bit_vector Ustart(sbwt.number_of_subsets(), 0);
+    for(int64_t i = 0; i < unitigs.size(); i++){
+        int64_t colex = sbwt.search(unitigs[i].substr(0, k));
+        Ustart[colex] = 1;
+    }
+
+    return {PackedStrings(unitigs, permutation), Ustart};
+
+
+}
+
+
+
 std::vector<std::string> get_available_variants_fmin(){
     // This currently works only with the plain matrix representation
     return {"plain-matrix"};//, "rrr-matrix", "mef-matrix", "plain-split", "rrr-split", "mef-split", "plain-concat", "mef-concat", "plain-subsetwt", "rrr-subsetwt"};
@@ -356,7 +453,11 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
 template<typename sbwt_t, typename reader_t, typename writer_t>
 sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
     int64_t new_number_of_fmin = 0;
-    
+
+    pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(sbwt, reader, indexfile);
+    PackedStrings& unitigs = unitig_data.first;
+    sdsl::bit_vector& Ustart = unitig_data.second;
+
     set<tuple<int64_t, int64_t, int64_t>> new_search;
     set<tuple<int64_t, int64_t, int64_t>>  finimizers;
     const int64_t k = sbwt.get_k();
@@ -368,12 +469,12 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     unitigs_k.reserve(n_nodes);
     unitigs_k.resize(n_nodes, 0);
     vector<int64_t> endpoints;
+    vector<char> read_buf;
     //sdsl::int_vector endpoints;
     if (type == "rarest"){
-        while(true) {
-            uint32_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
+            uint32_t len = unitigs.get(unitig_idx, read_buf);
+            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
                 new_number_of_fmin += new_search.size();
@@ -384,10 +485,9 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
         }
        //cerr << to_string(id) << endl;
     } else if (type == "shortest") {
-        while(true) {
-            uint32_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
+            uint32_t len = unitigs.get(unitig_idx, read_buf);
+            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
                 new_number_of_fmin += new_search.size();
@@ -395,10 +495,9 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             }    
         }
     } else if (type == "verify"){
-        while(true) {
-            int32_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, k);
+        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
+            uint32_t len = unitigs.get(unitig_idx, read_buf);
+            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 new_search = verify_shortest_streaming_search(DNA_rs, sbwt ,seq, t, writer);
                 new_number_of_fmin += new_search.size();
@@ -461,6 +560,15 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
         save_v(indexfile + "O.sdsl", unitigs_v);
         save_v(indexfile + "E.sdsl", endpoints_v);
         save_bv(indexfile + "FBV.sdsl", fmin_bv);
+
+        std::ofstream packed_unitigs_out(indexfile + "packed_unitigs.sdsl");
+        sdsl::serialize(unitigs.concat, packed_unitigs_out);
+        
+        std::ofstream unitig_endpoints_out(indexfile + "unitig_endpoints.sdsl");
+        sdsl::serialize(unitigs.ends, unitig_endpoints_out);
+
+        std::ofstream Ustart_out(indexfile + "Ustart.sdsl");
+        sdsl::serialize(Ustart, Ustart_out);
     }
     
     return fmin_bv;
@@ -505,110 +613,6 @@ int64_t fmin_search(const vector<string>& infiles, const string& outfile, const 
     return n_fmin;
 
 }
-
-class PackedStrings{
-    public:
-    sdsl::int_vector<2> concat;
-    sdsl::int_vector<> ends;
-
-    // Concatenates the strings according to the given permutation
-    PackedStrings(const vector<string>& strings, const vector<int64_t>& permutation){
-        int64_t total_length = 0;
-        int64_t max_length = 0;
-        for(const string& S : strings){
-            total_length += S.size();
-            max_length = max((int64_t)S.size(), max_length);
-        }
-
-        this->concat = sdsl::int_vector<2>(total_length);
-        this->ends = sdsl::int_vector<>(strings.size(), 64 - __builtin_clzll(max_length));
-
-        int64_t i = 0;
-        int64_t end = 0;
-        for(int64_t string_idx : permutation){
-            const string& S = strings[string_idx];
-            for(char c : S){
-                switch(c){
-                    case 'A': concat[i++] = 0; break;
-                    case 'C': concat[i++] = 1; break;
-                    case 'G': concat[i++] = 2; break;
-                    case 'T': concat[i++] = 3; break;
-                    default: throw std::runtime_error("Invalid character: " + c);
-                }
-            }
-            end += S.size();
-            ends[string_idx] = end;
-        }
-    }
-
-    // Clears the given buffer and stores string with index string_idx into it,
-    // including a null-terminator. Returns the length of the stored string,
-    // not counting the null.
-    int64_t get(int64_t string_idx, vector<char>& buffer) const{
-        assert(string_idx < ends.size());
-        int64_t start = 0;
-        if(string_idx > 0) start = ends[string_idx-1];
-
-        int64_t end = ends[string_idx]; // Exclusive end
-        int64_t len = end - start;
-
-        buffer.clear();
-        for(int64_t i = 0; i < len; i++){
-            buffer.push_back(concat[start+i]);
-        }
-        buffer.push_back(0);
-
-        return len;
-    }
-
-    int64_t number_of_strings() const{
-        return ends.size();
-    }
-};
-
-
-template <typename reader_t>
-void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_reader, const string& index_prefix){
-    int64_t k = sbwt.get_k();
-    vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> first_kmers; // pairs (kmer, unitig id)
-    vector<string> unitigs;
-
-    int64_t unitig_id = 0;
-    while(true){
-        int64_t len = unitig_reader.get_next_read_to_buffer();
-        if(len == 0) [[unlikely]] break;
-
-        unitigs.push_back(unitig_reader.read_buf);
-        first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(unitigs.back(), k), unitig_id});
-
-        unitig_id++;
-    }
-
-    std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
-    vector<int64_t> permutation;
-    for(auto& P : first_kmers){
-        permutation.push_back(P.second);
-    }
-
-    sdsl::bit_vector Ustart(sbwt.number_of_subsets(), 0);
-    for(int64_t i = 0; i < unitigs.size(); i++){
-        int64_t colex = sbwt.search(unitigs[i].substr(0, k));
-        Ustart[colex] = 1;
-    }
-
-    PackedStrings PS = PackedStrings(unitigs, permutation);
-
-    std::ofstream packed_unitigs_out(index_prefix + "packed_unitigs.sdsl");
-    sdsl::serialize(PS.concat, packed_unitigs_out);
-    
-    std::ofstream unitig_endpoints_out(index_prefix + "unitig_endpoints.sdsl");
-    sdsl::serialize(PS.ends, unitig_endpoints_out);
-
-    std::ofstream Ustart_out(index_prefix + "Ustart.sdsl");
-    sdsl::serialize(Ustart, Ustart_out);
-
-}
-
 
 int build_fmin(int argc, char** argv) {
 
