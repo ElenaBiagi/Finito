@@ -28,6 +28,8 @@ class PackedStrings{
     sdsl::int_vector<2> concat;
     sdsl::int_vector<> ends;
 
+    static constexpr char ACGT[] = "ACGT";
+
     // Concatenates the strings according to the given permutation
     PackedStrings(const vector<string>& strings, const vector<int64_t>& permutation){
         assert(strings.size() == permutation.size());
@@ -73,7 +75,7 @@ class PackedStrings{
 
         buffer.clear();
         for(int64_t i = 0; i < len; i++){
-            buffer.push_back(concat[start+i]);
+            buffer.push_back(ACGT[concat[start+i]]);
         }
         buffer.push_back(0);
 
