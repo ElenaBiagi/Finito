@@ -114,6 +114,7 @@ pair<PackedStrings, sdsl::bit_vector> permute_unitigs(const plain_matrix_sbwt_t&
     sdsl::bit_vector Ustart(sbwt.number_of_subsets(), 0);
     for(int64_t i = 0; i < unitigs.size(); i++){
         int64_t colex = sbwt.search(unitigs[i].substr(0, k));
+        if(colex == -1) cout << "Error: kmer " + unitigs[i].substr(0, k) + " in unitigs but not found in SBWT" << endl;
         Ustart[colex] = 1;
     }
 
