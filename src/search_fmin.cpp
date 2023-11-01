@@ -97,7 +97,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
 
-pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -169,11 +169,10 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search( const sdsl::rank_su
                 if (w_fmin > curr_substr) {w_fmin = curr_substr;}
                 all_fmin.insert(curr_substr);
             }
-            
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
-                while (get<3>(w_fmin) < kmer_start) {
+                while ((get<3>(w_fmin)+k-get<1>(w_fmin)) < kmer_start) {
                     all_fmin.erase(all_fmin.begin());
                     w_fmin = *all_fmin.begin();
                 }
@@ -181,12 +180,11 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search( const sdsl::rank_su
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
-            
         }
-        
     }
     return {found_kmers, count};
 }
+
 pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
@@ -263,7 +261,7 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search_r( const sdsl::rank_
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
-                while (get<3>(w_fmin) < kmer_start) {
+                while ((get<3>(w_fmin)+k-get<1>(w_fmin))< kmer_start) {
                     all_fmin.erase(all_fmin.begin());
                     w_fmin = *all_fmin.begin();
                 }
@@ -282,7 +280,6 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search_r( const sdsl::rank_
 template<typename sbwt_t, typename reader_t, typename writer_t>
 int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
     const int64_t k = sbwt.get_k();
-
     int64_t total_micros = 0;
     int64_t number_of_queries = 0;
     int64_t kmers_count = 0 , count, count_rev, kmers_count_rev = 0;
@@ -290,11 +287,10 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
     //found_kmers.reserve(str_len - k + 1);
     //found_kmers.resize(str_len - k + 1); 
 
-    
+    int64_t query_seq=0;
     while(true){
         int64_t len = reader.get_next_read_to_buffer();
         if(len == 0) break;
-        
         int64_t t0 = cur_time_micros();
         vector<int64_t> found_kmers(len - k + 1,-1);
         pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
@@ -309,12 +305,12 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
         //out_buffer_rev = final_pair.first;
         count_rev = final_pair.second;
         kmers_count_rev += count_rev;
-        
+
         print_vector(found_kmers, writer);
      
        total_micros += cur_time_micros() - t0;
     }
-    
+    write_log("k " + to_string(k), LogLevel::MAJOR);
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     write_log("Found kmers: " + to_string(kmers_count), LogLevel::MAJOR);
     write_log("Found kmers reverse : " + to_string(kmers_count_rev), LogLevel::MAJOR);
@@ -450,15 +446,14 @@ int search_fmin(int argc, char** argv){
 
     // Interpret input file
     string queryfile = opts["query-file"].as<string>();
-    vector<string> input_files;
+    vector<string> query_files;
     bool multi_file = queryfile.size() >= 4 && queryfile.substr(queryfile.size() - 4) == ".txt";
     if(multi_file){
-        input_files = readlines(queryfile);
+        query_files = readlines(queryfile);
     } else{
-        input_files = {queryfile};
+        query_files = {queryfile};
     }
-    for(string file : input_files) check_readable(file);
-
+    for(string file : query_files) check_readable(file);
 
     // Interpret output file
     string outfile = opts["out-file"].as<string>();
@@ -547,7 +542,7 @@ int search_fmin(int argc, char** argv){
         std::cerr<< "endpoints loaded"<<std::endl;
         sdsl::sd_vector<> ef_endpoints(endpoints.begin(),endpoints.end()); // Elias-Fano
 
-        number_of_queries += run_fmin_queries(input_files, output_files, indexfile, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+        number_of_queries += run_fmin_queries(query_files, output_files, indexfile, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
         int64_t new_total_micros = cur_time_micros() - micros_start;
         write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
         write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
