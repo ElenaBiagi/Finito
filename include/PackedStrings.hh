@@ -30,18 +30,18 @@ class PackedStrings{
 
     // Concatenates the strings according to the given permutation
     PackedStrings(const vector<string>& strings, const vector<int64_t>& permutation){
+        assert(strings.size() == permutation.size());
         int64_t total_length = 0;
-        int64_t max_length = 0;
         for(const string& S : strings){
             total_length += S.size();
-            max_length = max((int64_t)S.size(), max_length);
         }
 
         this->concat = sdsl::int_vector<2>(total_length);
-        this->ends = sdsl::int_vector<>(strings.size(), 64 - __builtin_clzll(max_length));
+        this->ends = sdsl::int_vector<>(strings.size(), 64 - __builtin_clzll(total_length));
 
-        int64_t i = 0;
-        int64_t end = 0;
+        int64_t i = 0; // Position in concatenation
+        int64_t ends_idx = 0; // Position in ends vector
+        int64_t end = 0; // End of current unitig
         for(int64_t string_idx : permutation){
             const string& S = strings[string_idx];
             for(char c : S){
@@ -54,8 +54,10 @@ class PackedStrings{
                 }
             }
             end += S.size();
-            ends[string_idx] = end;
+            ends[ends_idx++] = end;
         }
+
+        for(auto x : ends) cout << x << " "; cout << endl;
     }
 
     // Clears the given buffer and stores string with index string_idx into it,

@@ -379,10 +379,12 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     vector<char> read_buf;
     //sdsl::int_vector endpoints;
     if (type == "rarest"){
+        cout << "Unitig count: " << unitigs.number_of_strings() << endl;
         for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
             uint32_t len = unitigs.get(unitig_idx, read_buf);
             vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
+                cout << seq << endl;
                 new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
