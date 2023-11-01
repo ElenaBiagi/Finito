@@ -21,6 +21,7 @@
 #include "sdsl/int_vector.hpp"
 #include "sdsl/bit_vectors.hpp"
 #include "sbwt/commands.hh"
+#include "sbwt/Kmer.hh"
 #include "sbwt/suffix_group_optimization.hh"
 #include "lcs_basic_parallel_algorithm.hpp"
 //#include "lcs_basic_algorithm.hpp"
@@ -505,6 +506,79 @@ int64_t fmin_search(const vector<string>& infiles, const string& outfile, const 
 
 }
 
+// Returns the concatenated unitigs packed to 2 bits each, and the endpoint bit vector. The endpoints
+// are one past the end.
+pair<sdsl::int_vector<2>, sdsl::int_vector<>> pack_unitigs(const vector<string>& unitigs, const vector<int64_t>& permutation, int64_t total_length, int64_t max_length){
+    sdsl::int_vector<2> concat(total_length);
+    sdsl::int_vector<> endpoints(unitigs.size(), 64 - __builtin_clzll(max_length));
+    int64_t i = 0;
+    int64_t end = 0;
+    for(int64_t unitig_idx : permutation){
+        const string& unitig = unitigs[unitig_idx];
+        for(char c : unitig){
+            switch(c){
+                case 'A': concat[i++] = 0; break;
+                case 'C': concat[i++] = 1; break;
+                case 'G': concat[i++] = 2; break;
+                case 'T': concat[i++] = 3; break;
+                default: throw std::runtime_error("Invalid character: " + c);
+            }
+        }
+        end += unitig.size();
+        endpoints[unitig_idx] = end;
+    }
+    return {concat, endpoints};
+}
+
+template <typename reader_t>
+void permute_unitigs(const plain_matrix_sbwt_t& sbwt, const reader_t& unitig_reader, const string& index_prefix){
+    int64_t k = sbwt.get_k();
+    vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> first_kmers; // pairs (kmer, unitig id)
+    vector<string> unitigs;
+
+    int64_t unitig_id = 0;
+    int64_t total_unitig_length = 0;
+    int64_t max_unitig_length = 0;
+    while(true){
+        int64_t len = unitig_reader.get_next_read_to_buffer();
+        if(len == 0) [[unlikely]] break;
+
+        unitigs.push_back(unitig_reader.read_buf);
+        first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(unitigs.back(), k), unitig_id});
+
+        unitig_id++;
+        total_unitig_length += unitigs.size();
+        max_unitig_length = unitigs.back().size();
+    }
+
+    std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
+    vector<int64_t> permutation;
+    for(auto& P : first_kmers){
+        permutation.push_back(P.second);
+    }
+
+    sdsl::bit_vector Ustart(sbwt.number_of_subsets(), 0);
+    for(int64_t i = 0; i < first_kmers.size(); i++){
+        int64_t colex = sbwt.search(unitigs[i].substr(0, k));
+        Ustart[colex] = 1;
+    }
+
+    sdsl::int_vector<2> packed_unitigs;
+    sdsl::int_vector<> endpoints;
+    std::tie(packed_unitigs, endpoints) = pack_unitigs(unitigs, permutation, total_unitig_length, max_unitig_length);
+
+    std::ofstream packed_unitigs_out(index_prefix + "packed_unitigs.sdsl");
+    sdsl::serialize(packed_unitigs, packed_unitigs_out);
+    
+    std::ofstream unitig_endpoints_out(index_prefix + "unitig_endpoints.sdsl");
+    sdsl::serialize(endpoints, unitig_endpoints_out);
+
+    std::ofstream Ustart_out(index_prefix + "Ustart.sdsl");
+    sdsl::serialize(Ustart, Ustart_out);
+
+}
+
+
 int build_fmin(int argc, char** argv) {
 
     int64_t micros_start = cur_time_micros();
@@ -614,6 +688,6 @@ int build_fmin(int argc, char** argv) {
         std::cerr<< "LCS_file loaded" << std::endl;
         fmin_search(input_files, outfile, indexfile, sbwt, DNA_rs, LCS,t, type, gzip_output);//DNA_bitvectors,
 
-        return 0;
     }
+    return 0;
 }
