@@ -13,12 +13,15 @@
 #include <filesystem>
 #include <cstdio>
 
-#include "sbwt/throwing_streams.hh"
 
+#include "sbwt/throwing_streams.hh"
+#include "PackedStrings.hh"
 #include "SeqIO.hh"
 
 //#include <sdsl/elias_fano_vector.hpp>
 
+// Defined in build_fmin.cpp. TODO: TO HEADER
+extern pair<int64_t,int64_t> drop_first_char(const int64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const int64_t n_nodes);
 
 using namespace std;
 
@@ -93,6 +96,186 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
     }
     out.write(&newline, 1);
 }
+
+
+// Inclusive end
+int64_t pick_finimizer(int64_t kmer_end, int64_t k, const vector<optional<int64_t>>& shortest_unique_lengths, const vector<optional<int64_t>>& shortest_unique_colex_ranks){
+    if(kmer_end < k-1) throw std::runtime_error("bug: end < k-1");
+
+    const int64_t INFINITE = 1e18;
+    int64_t best_end = 1e18;
+    int64_t best_length = 1e18;
+    int64_t colex_tiebreaker = 1e18;
+
+    int64_t kmer_start = kmer_end - k + 1;
+
+    for(int64_t f_end = kmer_start; f_end <= kmer_end; f_end++){
+        if(shortest_unique_lengths[f_end].has_value()){
+            int64_t len = shortest_unique_lengths[f_end].value();
+            int64_t colex = shortest_unique_colex_ranks[f_end].value();
+            if(f_end - len >= kmer_start){
+                // This finimizer is in window
+                if(len < best_length || (len == best_length && colex < colex_tiebreaker)){
+                    best_end = f_end;
+                    best_length = len;
+                    colex_tiebreaker = colex;
+                }
+            }
+        }
+    }
+
+    if(best_length == INFINITE){
+        cerr << "Error: no finimizer found of a k-mer" << endl;
+    }
+
+    return best_end;
+}
+
+bool is_branching(const plain_matrix_sbwt_t& sbwt, int64_t colex){
+    // Rewind to the start of the suffix group
+    while(colex > 0 && sbwt.get_streaming_support()[colex] == 0)
+        colex--;
+
+    return sbwt.get_subset_rank_structure().A_bits[colex]
+         + sbwt.get_subset_rank_structure().C_bits[colex]
+         + sbwt.get_subset_rank_structure().G_bits[colex]
+         + sbwt.get_subset_rank_structure().T_bits[colex]
+         > 1;
+}
+
+// Inclusive ends
+optional<int64_t> get_rightmost_branch_end(int64_t kmer_end, int64_t k, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt){
+    for(int64_t p = kmer_end - 1; p >= finimizer_end; p--){
+        if(finimizer_end_colex[p].has_value() && is_branching(sbwt, finimizer_end_colex[p].value())){
+            return optional<int64_t>(p+1); // First k-mer end after branch
+        }
+    }
+    return optional<int64_t>(); // Null
+}
+
+// Returns the end point (inclusice) of the first k-mer in the concatenation of the unitigs
+int64_t lookup_from_branch_dictionary(int64_t kmer_colex, int64_t k, const sdsl::rank_support_v5<>& Ustart_rs, const PackedStrings& unitigs){
+    int64_t unitig_rank = Ustart_rs.rank(kmer_colex);
+    assert(unitig_rank < unitigs.ends.size());
+    int64_t global_unitig_start = 0;
+    if(unitig_rank > 0) global_unitig_start = unitigs.ends[unitig_rank-1];
+    return global_unitig_start + k - 1;
+}
+
+int64_t lookup_from_finimizer_dictionary(int64_t finimizer_colex, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& global_offsets){
+    int64_t finimizer_id = fmin_rs.rank(finimizer_colex);
+    return global_offsets[finimizer_id];
+}
+
+vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, const string& query){
+    vector<int64_t> colex_ranks = sbwt.streaming_search(query);
+    vector<optional<int64_t>> answers;
+    for(int64_t i = 0; i < sbwt.get_k()-1; i++) // First k-1 are always null because the k-mer is not full
+        answers.push_back(optional<int64_t>());
+
+    for(int64_t x : colex_ranks)
+        answers.push_back(x == -1 ? optional<int64_t>() : optional<int64_t>(x));
+    
+    return answers;
+}
+
+// Returns for each endpoint in the query the length of the shortest unique match (if exists)
+// ending there, and the length of that match
+pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_lengths_and_colex_ranks(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
+    auto is_singleton = [](const pair<int64_t, int64_t>& interval){ // Helper to make code more readable
+        return interval.second == interval.first;
+    };
+
+    vector<optional<int64_t>> shortest_unique_lengths(query.size());
+    vector<optional<int64_t>> shortest_unique_colex_ranks(query.size());
+
+    pair<int64_t, int64_t> I = {0, sbwt.number_of_subsets() - 1}; // Interval of empty string
+    int64_t len = 0;
+
+    for(int64_t end = 0; end < query.size(); end++){ // Inclusive end
+        I = sbwt.update_sbwt_interval(query.c_str() + end, 1, I); // Extend to the right by one character
+        len++;
+
+        if(!is_singleton(I)){
+            // No possible singleton ending here
+            shortest_unique_lengths[end] = optional<int64_t>(); // Null
+            shortest_unique_colex_ranks[end] = optional<int64_t>(); // Null
+        } else{
+            while(true){ // Contract from left as long as interval stays singleton
+                pair<int64_t, int64_t> I_new = drop_first_char(len-1, I, LCS, sbwt.number_of_subsets());
+                if(is_singleton(I_new)){
+                    len--;
+                    I = I_new;
+                } else break;
+            }
+            shortest_unique_lengths[end] = optional<int64_t>(len);
+            shortest_unique_colex_ranks[end] = optional<int64_t>(I.first);
+        }
+    }
+    return {shortest_unique_lengths, shortest_unique_colex_ranks};
+}
+
+void shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& global_offsets, const PackedStrings& unitigs, const sdsl::rank_support_v5<>& Ustart_rs){ // writer_t& writer
+
+    // For each k-mer S that is known to be in the SBWT
+    //   - Find the finimizer x.
+    //   - Walk forward in the SBWT from the colex rank of x (singleton interval), to the end of S,
+    //     recording the rightmost branch point, and the distance from the end of x to this branch
+    //     point.
+    //   - If a branch point was found, the k-mer containing x is at the unitig after the rightmost
+    //     branch. Otherwise, the k-mer containing x is at the unitig that x points to.
+    //   - If there was a branch, the k- mer endpoint in that unitig is k + the number of steps taken after the last branch.
+    //     
+
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const int64_t k = sbwt.get_k();
+    const vector<int64_t>& C = sbwt.get_C_array();
+
+    if(input.size() < k) return;
+
+    // For each position of the input, the SBWT colex rank of the k-mer that ends there, if exists.
+    // A k-mer does not exist if the ending position is too close to the start of the input, or the SBWT does
+    // not contain that k-mer.
+    vector<optional<int64_t>> kmer_colex_ranks = get_kmer_colex_ranks(sbwt, input);
+
+    // For each position of the input, the length of the shortest unique substring that ends there, if exists
+    // Unique substrings may not exist near the start of the input.
+    vector<optional<int64_t>> shortest_unique_lengths;
+
+    // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
+    vector<optional<int64_t>> shortest_unique_colex_ranks;
+
+    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(sbwt, LCS, input);
+
+    for(int64_t kmer_end = k-1; kmer_end < input.size(); kmer_end++) {
+        if(kmer_colex_ranks[kmer_end].has_value()){
+            // kmer exists
+
+            int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
+            optional<int64_t> rightmost_branch_end = get_rightmost_branch_end(kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
+            if(rightmost_branch_end.has_value()) {
+                // Look up from the branch dictionary
+                int64_t p = rightmost_branch_end.value();
+                int64_t colex = shortest_unique_colex_ranks[p].value();
+
+                // Get the global off set of the end of the k-mer
+                int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
+                global_kmer_end += kmer_end - p + 1;
+            } else {
+                // Look up from Finimizer dictionary
+                int64_t p = finimizer_end;
+                int64_t colex = shortest_unique_colex_ranks[p].value();
+                int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
+                global_kmer_end += kmer_end - p + 1;
+            }
+        }        
+    }
+
+    // TODO: report results to the caller
+
+    
+}
+
 
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
