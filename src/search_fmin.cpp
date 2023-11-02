@@ -103,9 +103,9 @@ int64_t pick_finimizer(int64_t kmer_end, int64_t k, const vector<optional<int64_
     if(kmer_end < k-1) throw std::runtime_error("bug: end < k-1");
 
     const int64_t INFINITE = 1e18;
-    int64_t best_end = 1e18;
-    int64_t best_length = 1e18;
-    int64_t colex_tiebreaker = 1e18;
+    int64_t best_end = INFINITE;
+    int64_t best_length = INFINITE;
+    int64_t colex_tiebreaker = INFINITE;
 
     int64_t kmer_start = kmer_end - k + 1;
 
