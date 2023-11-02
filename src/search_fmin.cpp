@@ -97,7 +97,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
 
-pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const sdsl::rank_support_v5<>& Ustart_rs, vector<int64_t>& found_kmers){ // writer_t& writer
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -105,28 +105,48 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::rank_sup
     set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
     const int64_t str_len = input.size();
     tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
-    
+    char c;
+    char char_idx;
     int64_t count = 0;
     int64_t start = 0;
     int64_t end;
     int64_t kmer_start = 0;
     pair<int64_t, int64_t> I = {0, n_nodes - 1}, I_kmer = {0, n_nodes - 1};
     pair<int64_t, int64_t> I_new, I_kmer_new;
-    int64_t I_start;
+    int64_t I_start = -1;
     tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
+    set<pair<int64_t, int64_t>> last_branch; // {index in the query, I_start,}
+    int64_t unitig_id;
+    int64_t unitig_start;
     
     // the idea is to start from the first pos which is i and move until finding something of ok freq
     // then drop the first char keeping track of which char you are starting from
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
-        char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-        int64_t char_idx = get_char_idx(c);
+        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+        char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
             cerr << "Error: unknown character: " << c << endl;
             cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
         } else {
+            // WRONG WE NEVER EXTEND RIGHT IF THE FREQ IS 1
+            /* // Check the previous branch before searching the next char
+            if (freq==1){
+                char branch = 0;
+                vector<char> bases = {0,1,2,3};
+                bases.erase(bases.begin()+char_idx);
+                // TODO: remove char_idx
+                for (char base :bases){
+                const sdsl::bit_vector &Bit_char = *(DNA_bitvectors[base]);
+                branch= branch | Bit_char[I_start];
+            }
+                    if (branch){
+                        last_branch = {I_start, end};   
+                    }  
+            } */
+
             const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
             // 1) fmin interval
             I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
@@ -157,6 +177,20 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::rank_sup
             }
             // (2b) Finimizer found
             if (freq ==1){ // 1. rarest
+                // Check the previous branch before searching the next char
+                char branch = 0;
+                vector<char> bases = {0,1,2,3};
+                // TODO: remove char_idx without going out of bound!!!
+                //bases.erase(bases.begin()+char_idx);
+                for (char base :bases){
+                    const sdsl::bit_vector &Bit_char = *(DNA_bitvectors[base]);
+                    branch = branch + Bit_char[I_start];
+                    if (branch > 1) {break;} // TODO fix this
+                }
+                if (branch > 1){
+                    last_branch.insert({end+1,I_start}); // isert a new branch 
+                }
+
                 while (freq == 1) { // 2. shortest
                     curr_substr = {freq, end - start + 1, I_start, end - k + 1};
                     // 2. drop the first char
@@ -176,7 +210,60 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::rank_sup
                     all_fmin.erase(all_fmin.begin());
                     w_fmin = *all_fmin.begin();
                 }
-                found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]+(get<3>(w_fmin) - kmer_start);
+                // only now I know the correct finimizer and the kmer
+                if (!last_branch.empty()){
+                    // identify the first branch after the finimizer
+                    pair<int64_t, int64_t> f_branch = *last_branch.begin();
+                    while( f_branch.first <= (get<3>(w_fmin)+k) ){ // remove all branches before the finimizer end
+                        last_branch.erase(last_branch.begin());
+                        f_branch = *last_branch.begin();
+                    }
+
+                    if (!last_branch.empty()){
+                        // Check when the branch occured
+                        set<pair<int64_t, int64_t>>::reverse_iterator itr;
+                        pair<int64_t, int64_t> l_branch;
+                        for (itr = last_branch.rbegin(); itr != last_branch.rend(); itr++){
+                            l_branch = *itr;
+                            if (l_branch.first <= end){break;}
+                        }
+                        //pair<int64_t, int64_t> l_branch = last_branch.rbegin()[0]; // last element //*last_branch.end();
+                        //if (l_branch.first > end){
+                        //    pair<int64_t, int64_t> l_branch = last_branch.rbegin()[1];
+                        //}
+                        if (l_branch.first >= get<3>(w_fmin)+k){ // after the finimizer
+                            // we are pointing to a different unitig!!
+                            // we have the I_start and the pos of the char preceding the branch in the query
+                            c = static_cast<char>(input[l_branch.first] & ~32); // branching char
+                            char_idx = get_char_idx(c);
+                            pair<int64_t, int64_t> I_branch = update_sbwt_interval(C[char_idx], {l_branch.second,l_branch.second}, Bit_rs);
+                            unitig_id= Ustart_rs(unitig_start);
+                            ef_endpoints[unitig_id];// correct finimizer
+                            //I have the index in the previous finimizer and know where it ends
+                            // get<3>(w_fmin) start of the kmer ending with the finimizer
+                            // get<3>(w_fmin)+k-1 last pos of the finimizer (- get<1>(w_fmin) +1 = start pos)
+                            // start pos of the kmer ending with the finimizer in the wrong unitig unitigs_v[fmin_rs(get<2>(w_fmin))]
+                            int64_t f_start = k - (f_branch.first - (get<3>(w_fmin)+k-get<1>(w_fmin))); // starting pos of the finimizer in the last kmer of the WRONG unitig      //(get<3>(w_fmin)+k-get<1>(w_fmin)) - (l_branch.first - 1 - k); 
+                            
+                            char branches = l_branch.first - f_branch.first + 1; // all the char between the first and the last branch following unitig included!!! 
+                            f_start += unitig_id - branches; // starting pos of the finimizer in the new unitig
+                            found_kmers[kmer_start]= f_start - ((get<3>(w_fmin)+k-get<1>(w_fmin)) - kmer_start);
+
+                        } else { 
+                        // no relevant branches in the kmer after the finimizer 
+                        // TODO check if the branch occured before right at the start of the finimizer!!! $$$$xxx(finimizer)
+                        found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]+(get<3>(w_fmin) - kmer_start);
+                        }
+                    }else{
+                        found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]+(get<3>(w_fmin) - kmer_start);
+                    }
+                    
+                
+                }else{
+                    found_kmers[kmer_start] = unitigs_v[fmin_rs(get<2>(w_fmin))]+(get<3>(w_fmin) - kmer_start);
+
+                }
+                
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
@@ -186,6 +273,8 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::rank_sup
 }
 
 pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search_r( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, vector<int64_t>& found_kmers){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+    char c;
+    char char_idx;
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -208,8 +297,8 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search_r( const sdsl::rank_
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
-        char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-        int64_t char_idx = get_char_idx(c);
+        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+        char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
             cerr << "Error: unknown character: " << c << endl;
             cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
@@ -278,7 +367,7 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search_r( const sdsl::rank_
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
+int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const sdsl::rank_support_v5<>& Ustart_rs, const char t){
     const int64_t k = sbwt.get_k();
     int64_t total_micros = 0;
     int64_t number_of_queries = 0;
@@ -293,19 +382,19 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
         if(len == 0) break;
         int64_t t0 = cur_time_micros();
         vector<int64_t> found_kmers(len - k + 1,-1);
-        pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search( DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
+        pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, unitigs_v, ef_endpoints, Ustart_rs, found_kmers);
         out_buffer = final_pair.first;
         count = final_pair.second;
         number_of_queries += out_buffer.size();
         kmers_count += count;
     
         //reverse compl
-        const string reverse = sbwt::get_rc(reader.read_buf);
+        /* const string reverse = sbwt::get_rc(reader.read_buf);
         final_pair = rarest_fmin_streaming_search_r( DNA_rs, sbwt, LCS, reverse, t, fmin_rs, unitigs_v, ef_endpoints, found_kmers);
         //out_buffer_rev = final_pair.first;
         count_rev = final_pair.second;
         kmers_count_rev += count_rev;
-
+        */
         print_vector(found_kmers, writer);
      
        total_micros += cur_time_micros() - t0;
@@ -313,7 +402,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
     write_log("k " + to_string(k), LogLevel::MAJOR);
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     write_log("Found kmers: " + to_string(kmers_count), LogLevel::MAJOR);
-    write_log("Found kmers reverse : " + to_string(kmers_count_rev), LogLevel::MAJOR);
+    //write_log("Found kmers reverse : " + to_string(kmers_count_rev), LogLevel::MAJOR);
     write_log("Total found kmers: " + to_string(kmers_count+kmers_count_rev), LogLevel::MAJOR);
 
     std::ofstream statsfile;
@@ -350,12 +439,12 @@ int64_t run_queries_not_streaming(reader_t& reader, writer_t& writer, const sbwt
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_fmin_file(const string& infile, const string& outfile, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
+int64_t run_fmin_file(const string& infile, const string& outfile, const string& indexfile, const sbwt_t& sbwt, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const sdsl::rank_support_v5<>& Ustart_rs, const char t){
     reader_t reader(infile);
     writer_t writer(outfile);
     if(sbwt.has_streaming_query_support()){
         write_log("Running streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-        return run_fmin_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+        return run_fmin_queries_streaming<sbwt_t, reader_t, writer_t>(reader, writer, indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, Ustart_rs, t);
     }
     else{
         write_log("Running non-streaming queries from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
@@ -365,7 +454,7 @@ int64_t run_fmin_file(const string& infile, const string& outfile, const string&
 
 // Returns number of queries executed
 template<typename sbwt_t>
-int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& outfiles, const string& indexfile, const sbwt_t& sbwt, bool gzip_output, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const char t){
+int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& outfiles, const string& indexfile, const sbwt_t& sbwt, bool gzip_output, const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const sdsl::rank_support_v5<>& fmin_rs, sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const sdsl::rank_support_v5<>& Ustart_rs, const char t){
 
     if(infiles.size() != outfiles.size()){
         string count1 = to_string(infiles.size());
@@ -383,16 +472,16 @@ int64_t run_fmin_queries(const vector<string>& infiles, const vector<string>& ou
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
         if(gzip_input && gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v,ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, Ustart_rs, t);
         }
         if(gzip_input && !gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, Ustart_rs, t);
         }
         if(!gzip_input && gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, Ustart_rs, t);
         }
         if(!gzip_input && !gzip_output){
-            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+            n_queries_run += run_fmin_file<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfiles[i], indexfile, sbwt, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, Ustart_rs, t);
         }
     }
     return n_queries_run;
@@ -423,6 +512,7 @@ int search_fmin(int argc, char** argv){
         ("f, fmin_bv", "Provide in input the finimizers binary kmers vector.", cxxopts::value<string>()->default_value(""))
         ("e, endpoints", "Provide in input the endpoints of the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
         ("g, global-offsets", "Provide in input the global offsets of finimizers in the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
+        ("s, u-start", "Provide in input the bitvector marking the start kmer of each unitig.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage")
     ;
 
@@ -526,7 +616,6 @@ int search_fmin(int argc, char** argv){
         sdsl::bit_vector fmin_bv;
         load_bv(fmin_bv_file,fmin_bv);
         std::cerr<< "fmin_bv_file loaded"<<std::endl;
-
         sdsl::rank_support_v5<> fmin_rs(&fmin_bv);
 
         string unitigs_v_file = opts["global-offsets"].as<string>();
@@ -534,6 +623,7 @@ int search_fmin(int argc, char** argv){
         load_v(unitigs_v_file,unitigs_v);
         std::cerr<< "offsets loaded"<<std::endl;
 
+        /* 
         string endpoints_file = opts["endpoints"].as<string>();
         //std::vector<uint32_t> endpoints;
         //load_intv32(endpoints_file,endpoints);
@@ -542,7 +632,31 @@ int search_fmin(int argc, char** argv){
         std::cerr<< "endpoints loaded"<<std::endl;
         sdsl::sd_vector<> ef_endpoints(endpoints.begin(),endpoints.end()); // Elias-Fano
 
-        number_of_queries += run_fmin_queries(query_files, output_files, indexfile, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, t);
+        string u_start_file = opts["unitig-start"].as<string>();
+        sdsl::bit_vector unitig_start;
+        load_bv(u_start_file,fmin_bv);
+        std::cerr<< "unitig-start loaded"<<std::endl;
+        sdsl::rank_support_v5<> Ustart_rs(&fmin_bv);
+        */
+
+        // Load packed_unitigs
+        sdsl::int_vector<2> unitigs;
+        std::ifstream packed_unitigs_in(indexfile + "packed_unitigs.sdsl");
+        sdsl::load(unitigs, packed_unitigs_in);
+
+        // Load unitig_endpoints
+        sdsl::int_vector<> unitig_ends;
+        std::ifstream unitig_endpoints_in(indexfile + "unitig_endpoints.sdsl");
+        sdsl::load(unitig_ends, unitig_endpoints_in);
+        sdsl::sd_vector<> ef_endpoints(unitig_ends.begin(),unitig_ends.end()); // Elias-Fano
+
+        // Load Ustart
+        sdsl::bit_vector Ustart;
+        std::ifstream Ustart_in(indexfile + "Ustart.sdsl");
+        sdsl::load(Ustart, Ustart_in);
+        sdsl::rank_support_v5<> Ustart_rs(&Ustart);
+
+        number_of_queries += run_fmin_queries(query_files, output_files, indexfile, sbwt, gzip_output, DNA_bitvectors, DNA_rs, LCS, fmin_rs, unitigs_v, ef_endpoints, Ustart_rs, t);
         int64_t new_total_micros = cur_time_micros() - micros_start;
         write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
         write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
