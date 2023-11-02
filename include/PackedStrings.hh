@@ -30,6 +30,8 @@ class PackedStrings{
 
     static constexpr char ACGT[] = "ACGT";
 
+    PackedStrings() {}
+
     // Concatenates the strings according to the given permutation
     PackedStrings(const vector<string>& strings, const vector<int64_t>& permutation){
         assert(strings.size() == permutation.size());
