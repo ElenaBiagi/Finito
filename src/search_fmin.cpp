@@ -172,24 +172,24 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::bit_vect
                     I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
                 } 
                 I_kmer = I_kmer_new;
-                if (I_kmer.first == I_kmer.second){
-                    // Check the previous branch before searching the next char
-                    char branch = 0;
-                    vector<char> bases = {0,1,2,3}; // still checking all 4 possible char here
-                    // TODO: remove char_idx without going out of bound!!!
-                    // c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-                    // char_idx = get_char_idx(c);
-                    // bases.erase(bases.begin()+char_idx);
-                    for (char base :bases){
-                        const sdsl::bit_vector &Bit_char = *(DNA_bitvectors[base]);
-                        branch = branch + Bit_char[I_start];
-                        if (branch > 1) {
-                            last_branch.insert({end+1,I_start}); // isert a new branch 
-                            break;} // TODO fix this
-                    }
-                }
             } else { 
                 I_kmer = I;
+            }
+            if (I_kmer.first == I_kmer.second){
+                // Check the previous branch before searching the next char
+                char branch = 0;
+                vector<char> bases = {0,1,2,3}; // still checking all 4 possible char here
+                // TODO: remove char_idx without going out of bound!!!
+                // c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+                // char_idx = get_char_idx(c);
+                // bases.erase(bases.begin()+char_idx);
+                for (char base :bases){
+                    const sdsl::bit_vector &Bit_char = *(DNA_bitvectors[base]);
+                    branch = branch + Bit_char[I_start];
+                    if (branch > 1) {
+                        last_branch.insert({end+1,I_start}); // insert a new branch 
+                        break;}
+                }
             }
             // (2b) Finimizer found
             if (freq ==1){ // 1. rarest
