@@ -59,7 +59,6 @@ class PackedStrings{
             ends[ends_idx++] = end;
         }
 
-        for(auto x : ends) cout << x << " "; cout << endl;
     }
 
     // Clears the given buffer and stores string with index string_idx into it,
