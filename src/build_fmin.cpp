@@ -187,8 +187,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
-        cerr << "kmer: " << kmer << endl;
-        cerr << "end: " << end<< endl;
         c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -217,7 +215,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
             }
         }
         if (end >= k -1 ){
-            cerr << kmer << " "<<  input.substr(kmer,k) << endl;
             size_t old_fmin_count = count_all_w_fmin.size();
             count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
             if (old_fmin_count != count_all_w_fmin.size()){
@@ -227,7 +224,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
                 }
                 unitigs_k[get<2>(w_fmin)]= id + get<3>(w_fmin);
             }                
-            write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
+            //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
             while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
@@ -388,8 +385,8 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 //cout << seq << endl;
-                //new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
-                new_search = build_unique_streaming_search_jarno(DNA_rs, sbwt, LCS, seq);
+                new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
+                //new_search = build_unique_streaming_search_jarno(DNA_rs, sbwt, LCS, seq);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }
@@ -468,6 +465,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
                 j++;
             }
         }
+        
     
         save_v(indexfile + "O.sdsl", unitigs_v);
         save_v(indexfile + "E.sdsl", endpoints_v);
