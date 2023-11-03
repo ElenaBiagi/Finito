@@ -1,6 +1,8 @@
 //
 // Created by Biagi, Elena on 23.6.2023.
 //
+#pragma once
+
 #include <fstream>
 #include <string>
 #include <tuple>
@@ -25,6 +27,7 @@
 #include "sbwt/Kmer.hh"
 #include "sbwt/suffix_group_optimization.hh"
 #include "lcs_basic_parallel_algorithm.hpp"
+#include "common.hh"
 //#include "lcs_basic_algorithm.hpp"
 
 using namespace std;
@@ -115,39 +118,6 @@ void write_csv(const tuple<string, string, string, string,string>& p, writer_t& 
     std::string line = std::get<0>(p) + ',' + std::get<1>(p) + ',' + std::get<2>(p) + ',' + std::get<3>(p) + ',' + std::get<4>(p) + '\n';
     out.write(line.c_str(), line.length());
     out.write(&newline, 1);
-}
-
-char get_char_idx(char c){
-    switch(c){
-        case 'A': return 0;
-        case 'C': return 1;
-        case 'G': return 2;
-        case 'T': return 3;
-        default: return -1;
-    }
-}
-
-pair<int64_t,int64_t> update_sbwt_interval(const int64_t C_char, const pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs){
-    if(I.first == -1) return I;
-    pair<int64_t,int64_t> new_I;
-    // both start and end are included
-    new_I.first = C_char + Bit_rs(I.first);
-    new_I.second = C_char + Bit_rs(I.second+1) -1;
-    if(new_I.first > new_I.second){
-        return {-1,-1}; // Not found
-    } 
-    return new_I;
-}
-
-pair<int64_t,int64_t> drop_first_char(const int64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const int64_t n_nodes){
-    if(I.first == -1) return I;
-    pair<int64_t,int64_t> new_I = I;
-    //Check top and bottom w the LCS
-    while (LCS[new_I.first] >= new_len ){new_I.first --;}
-    while(new_I.second < (n_nodes - 1) && LCS[new_I.second + 1] >= new_len ){
-        new_I.second ++;
-    }
-    return {new_I};
 }
 
 template<typename writer_t>
@@ -272,6 +242,31 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
         }
     }
     return count_all_w_fmin;
+}
+
+set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors,
+
+    int64_t k = sbwt.get_k();
+
+    // For each position of the input, the length of the shortest unique substring that ends there, if exists
+    // Unique substrings may not exist near the start of the input.
+    vector<optional<int64_t>> shortest_unique_lengths;
+
+    // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
+    vector<optional<int64_t>> shortest_unique_colex_ranks;
+
+    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(DNA_rs, sbwt, LCS, input);
+
+    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin; // len, freq, colex
+    for(int64_t kmer_end = k - 1; kmer_end < input.size(); kmer_end++){
+        int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
+        int64_t len = shortest_unique_lengths[finimizer_end].value();
+        int64_t colex = shortest_unique_colex_ranks[finimizer_end].value();
+        count_all_w_fmin.insert({len, 1, colex});
+    }
+
+    return count_all_w_fmin;
+    
 }
 
 template<typename writer_t>
@@ -405,7 +400,11 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             uint32_t len = unitigs.get(unitig_idx, read_buf);
             vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
-                new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
+                //new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
+                //set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors,
+
+                new_search = build_unique_streaming_search_jarno(DNA_rs, sbwt, LCS, seq);
+
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }    
