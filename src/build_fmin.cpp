@@ -163,7 +163,7 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sds
 }
 
 template<typename writer_t>
-set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer, sdsl::bit_vector& fmin_bv, vector<uint32_t>& unitigs_k, const int64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
+set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, vector<uint32_t>& unitigs_k, const int64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -215,15 +215,18 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
             }
         }
         if (end >= k -1 ){
-            size_t old_fmin_count = count_all_w_fmin.size();
             count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
-            if (old_fmin_count != count_all_w_fmin.size()){
+            fmin_bv[get<2>(w_fmin)]=1;
+            if (!fmin_found[get<2>(w_fmin)]){ // if the kmer never been found before
                 fmin_bv[get<2>(w_fmin)]=1;
                 if ((id + get<3>(w_fmin))> ULLONG_MAX){
                     std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
                 }
                 unitigs_k[get<2>(w_fmin)]= id + get<3>(w_fmin);
-            }                
+            }
+            if (get<3>(w_fmin) >= k-1){
+                fmin_found[get<2>(w_fmin)] = 1;
+            }
             //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
@@ -373,6 +376,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     int64_t id = 0;
     int64_t n_nodes = sbwt.number_of_subsets();
     sdsl::bit_vector fmin_bv(n_nodes);
+    sdsl::bit_vector fmin_found(n_nodes);
     vector<uint32_t> unitigs_k; // global offsets
     unitigs_k.reserve(n_nodes);
     unitigs_k.resize(n_nodes, 0);
@@ -385,7 +389,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 //cout << seq << endl;
-                new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
+                new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, fmin_found, unitigs_k, id);
                 //new_search = build_unique_streaming_search_jarno(DNA_rs, sbwt, LCS, seq);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
@@ -462,6 +466,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
         for (int64_t i = 0; i < n_nodes; i++){
             if (fmin_bv[i] == 1){
                 unitigs_v[j] = unitigs_k[i];
+                cerr << unitigs_v[j]<< endl;
                 j++;
             }
         }
