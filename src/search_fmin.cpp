@@ -98,7 +98,7 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 }
 
 
-void shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& global_offsets, const PackedStrings& unitigs, const sdsl::rank_support_v5<>& Ustart_rs){ // writer_t& writer
+pair<vector<int64_t>, int64_t> shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& global_offsets, const PackedStrings& unitigs, const sdsl::rank_support_v5<>& Ustart_rs, vector<int64_t>& found_kmers){ // writer_t& writer
 
     // For each k-mer S that is known to be in the SBWT
     //   - Find the finimizer x.
@@ -114,7 +114,7 @@ void shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvector
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
 
-    if(input.size() < k) return;
+    if(input.size() < k) return {found_kmers, 0};
 
     // For each position of the input, the SBWT colex rank of the k-mer that ends there, if exists.
     // A k-mer does not exist if the ending position is too close to the start of the input, or the SBWT does
@@ -144,19 +144,23 @@ void shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvector
                 // Get the global off set of the end of the k-mer
                 int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
                 global_kmer_end += kmer_end - p + 1;
+                found_kmers[kmer_end - (k-1)] = global_kmer_end;
             } else {
                 // Look up from Finimizer dictionary
                 int64_t p = finimizer_end;
                 int64_t colex = shortest_unique_colex_ranks[p].value();
                 int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
                 global_kmer_end += kmer_end - p + 1;
+                found_kmers[kmer_end - (k-1)] = global_kmer_end;
             }
         }        
     }
 
-    // TODO: report results to the caller
+    //for(auto x : kmer_colex_ranks) cout << (x.has_value() ? to_string(x.value()) : "-") << " "; cout << endl;
+    int64_t n_found = 0;
+    for(optional<int64_t> x : kmer_colex_ranks) n_found += x.has_value();
 
-    
+    return {found_kmers, n_found};
 }
 
 
@@ -453,15 +457,14 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
         int64_t t0 = cur_time_micros();
         vector<int64_t> found_kmers(len - k + 1,-1);
         //pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, global_offsets, ef_endpoints, Ustart_rs, found_kmers);
-        shortest_unique_search_jarno_rewrite(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, 1, fmin_rs, global_offsets, unitigs, Ustart_rs);
+        auto final_pair = shortest_unique_search_jarno_rewrite(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, 1, fmin_rs, global_offsets, unitigs, Ustart_rs, found_kmers);
 
-        /* TODO Jarno
         out_buffer = final_pair.first;
         count = final_pair.second;
         number_of_queries += out_buffer.size();
         kmers_count += count;
     
-        print_vector(found_kmers, writer);*/
+        print_vector(found_kmers, writer);
      
        total_micros += cur_time_micros() - t0;
     }
