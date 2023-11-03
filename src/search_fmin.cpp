@@ -12,7 +12,7 @@
 #include "sbwt/commands.hh"
 #include <filesystem>
 #include <cstdio>
-
+#include <optional>
 
 #include "sbwt/throwing_streams.hh"
 #include "PackedStrings.hh"
@@ -200,10 +200,6 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>>  get_shortest_unique_
 
     vector<optional<int64_t>> shortest_unique_lengths(query.size());
     vector<optional<int64_t>> shortest_unique_colex_ranks(query.size());
-
-
-    vector<optional<int64_t>> shortest_unique_lengths(query.size());
-    vector<optional<int64_t>> shortest_unique_colex_ranks(query.size());
     
     for (int64_t end = 0; end < str_len; end++) {
         char c = static_cast<char>(query[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
@@ -239,8 +235,8 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>>  get_shortest_unique_
                     freq = (I.second - I.first + 1);
                     I_start = I.first;
                 }
-                shortest_unique_lengths[end]= curr_substr[0];
-                shortest_unique_colex_ranks[end]= curr_substr[1];
+                shortest_unique_lengths[end]= curr_substr.first;
+                shortest_unique_colex_ranks[end]= curr_substr.second;
             }else{
                 shortest_unique_lengths[end]= optional<int64_t>{};
                 shortest_unique_colex_ranks[end]= optional<int64_t>{};
