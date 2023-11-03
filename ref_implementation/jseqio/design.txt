@@ -1,0 +1,17 @@
+// Questions: BufRead or Read
+
+// Functionality:
+// In-memory: all().iter()
+// Streaming: next()
+// Get name which is the first token of the header
+// Result types everywhere where things can fail (todo at least writer is missing these)
+// Figure out file extension string including the .gz part
+// Take in the correct strings types, not std::String always
+// Empty file should work
+// By default always write in same format as reading
+// Derive all the commonly needed traits like Debug etc
+
+// Is this 'static necessary?
+    // Need to constrain + 'static because boxed things always need to have a static
+    // lifetime.
+    pub fn new_from_input_stream<R: std::io::BufRead + 'static>(r: R) -> Result<Self, Box<dyn std::error::Error>>{
