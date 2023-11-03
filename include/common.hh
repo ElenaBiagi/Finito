@@ -170,7 +170,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
             }
         }
     }
-    for(auto x : shortest_unique_lengths) cout << (x.has_value() ? to_string(x.value()) : "Null") << " "; cout << endl;
+    //for(auto x : shortest_unique_lengths) cout << (x.has_value() ? to_string(x.value()) : "Null") << " "; cout << endl;
 
     return {shortest_unique_lengths, shortest_unique_colex_ranks};
 }
