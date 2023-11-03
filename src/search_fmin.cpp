@@ -180,8 +180,20 @@ vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, 
 }
 
 // Returns for each endpoint in the query the length of the shortest unique match (if exists)
-// ending there, and the length of that match
-pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_lengths_and_colex_ranks(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
+// ending there, and the colex of that match
+pair<vector<optional<int64_t>>, vector<optional<int64_t>>>  get_shortest_unique_lengths_and_colex_ranks(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const vector<int64_t>& C = sbwt.get_C_array();
+    int64_t freq;
+    const int64_t str_len = query.size();
+    
+    int64_t start = 0;
+    int64_t kmer_start = 0;
+    pair<int64_t, int64_t> I = {0, n_nodes - 1}, I_kmer = {0, n_nodes - 1};
+    pair<int64_t, int64_t> I_new;
+    int64_t I_start;
+    pair<int64_t, int64_t> curr_substr;
+
     auto is_singleton = [](const pair<int64_t, int64_t>& interval){ // Helper to make code more readable
         return interval.second == interval.first;
     };
@@ -189,27 +201,50 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
     vector<optional<int64_t>> shortest_unique_lengths(query.size());
     vector<optional<int64_t>> shortest_unique_colex_ranks(query.size());
 
-    pair<int64_t, int64_t> I = {0, sbwt.number_of_subsets() - 1}; // Interval of empty string
-    int64_t len = 0;
 
-    for(int64_t end = 0; end < query.size(); end++){ // Inclusive end
-        I = sbwt.update_sbwt_interval(query.c_str() + end, 1, I); // Extend to the right by one character
-        len++;
+    vector<optional<int64_t>> shortest_unique_lengths(query.size());
+    vector<optional<int64_t>> shortest_unique_colex_ranks(query.size());
+    
+    for (int64_t end = 0; end < str_len; end++) {
+        char c = static_cast<char>(query[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+        char char_idx = get_char_idx(c);
+        if (char_idx == -1) [[unlikely]]{
+            cerr << "Error: unknown character: " << c << endl;
+            cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
+            return {};
+        } else {
+            const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
+            I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
 
-        if(!is_singleton(I)){
-            // No possible singleton ending here
-            shortest_unique_lengths[end] = optional<int64_t>(); // Null
-            shortest_unique_colex_ranks[end] = optional<int64_t>(); // Null
-        } else{
-            while(true){ // Contract from left as long as interval stays singleton
-                pair<int64_t, int64_t> I_new = drop_first_char(len-1, I, LCS, sbwt.number_of_subsets());
-                if(is_singleton(I_new)){
-                    len--;
-                    I = I_new;
-                } else break;
+            // (1) Finimizer(subseq) NOT found
+            while(I_new.first == -1){
+                shortest_unique_lengths[end]= optional<int64_t>{};
+                shortest_unique_colex_ranks[end]= optional<int64_t>{};
+                I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
+                I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
             }
-            shortest_unique_lengths[end] = optional<int64_t>(len);
-            shortest_unique_colex_ranks[end] = optional<int64_t>(I.first);
+            I = I_new;
+            freq = (I.second - I.first + 1);
+            I_start = I.first;
+            // (2) Finimizer(subseq) freq > 0
+          
+            // (2b) Finimizer found
+            if (freq ==1){ // 1. rarest
+                while (freq == 1) { // 2. shortest
+                    curr_substr = {end - start + 1, I_start};
+                    // 2. drop the first char
+                    // When you drop the first char you are sure to find x_2..m since you found x_1..m before
+                    start ++;
+                    I = drop_first_char(end - start + 1, I, LCS, n_nodes);
+                    freq = (I.second - I.first + 1);
+                    I_start = I.first;
+                }
+                shortest_unique_lengths[end]= curr_substr[0];
+                shortest_unique_colex_ranks[end]= curr_substr[1];
+            }else{
+                shortest_unique_lengths[end]= optional<int64_t>{};
+                shortest_unique_colex_ranks[end]= optional<int64_t>{};
+            }
         }
     }
     return {shortest_unique_lengths, shortest_unique_colex_ranks};
@@ -245,7 +280,7 @@ void shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvector
     // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
     vector<optional<int64_t>> shortest_unique_colex_ranks;
 
-    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(sbwt, LCS, input);
+    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(DNA_rs, sbwt, LCS, input);
 
     for(int64_t kmer_end = k-1; kmer_end < input.size(); kmer_end++) {
         if(kmer_colex_ranks[kmer_end].has_value()){
@@ -275,6 +310,8 @@ void shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvector
 
     
 }
+
+
 
 
 // Here you are noT sure to find the interval as when building fmin
