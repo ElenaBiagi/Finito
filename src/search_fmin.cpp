@@ -143,14 +143,14 @@ pair<vector<int64_t>, int64_t> shortest_unique_search_jarno_rewrite(const sdsl::
 
                 // Get the global off set of the end of the k-mer
                 int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
-                global_kmer_end += kmer_end - p + 1;
+                global_kmer_end += kmer_end - p;
                 found_kmers[kmer_end - (k-1)] = global_kmer_end;
             } else {
                 // Look up from Finimizer dictionary
                 int64_t p = finimizer_end;
                 int64_t colex = shortest_unique_colex_ranks[p].value();
                 int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
-                global_kmer_end += kmer_end - p + 1;
+                global_kmer_end += kmer_end - p;
                 found_kmers[kmer_end - (k-1)] = global_kmer_end;
             }
         }        
@@ -458,6 +458,8 @@ int64_t run_fmin_queries_streaming(reader_t& reader, writer_t& writer, const str
         vector<int64_t> found_kmers(len - k + 1,-1);
         //pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, global_offsets, ef_endpoints, Ustart_rs, found_kmers);
         auto final_pair = shortest_unique_search_jarno_rewrite(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, 1, fmin_rs, global_offsets, unitigs, Ustart_rs, found_kmers);
+
+        for(int64_t x : final_pair.first) cout << x << " "; cout << endl;
 
         out_buffer = final_pair.first;
         count = final_pair.second;

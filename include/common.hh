@@ -66,16 +66,34 @@ bool is_branching(const plain_matrix_sbwt_t& sbwt, int64_t colex){
 }
 
 // Inclusive ends. Retuns (end, colex of end)
+// This function assumes that the k-mer we are looking for exists in the sbwt
 optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& query, int64_t kmer_end, int64_t k, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt){
-    for(int64_t p = kmer_end - 1; p >= finimizer_end; p--){
-        if(finimizer_end_colex[p].has_value() && is_branching(sbwt, finimizer_end_colex[p].value())){
-            char c = query[p+1];
-            int64_t colex = sbwt.forward(finimizer_end_colex[p].value(), c); // there should be a branch with input[p+1] because if we are in this function, the k-mer we are looking for should exist
-            if(colex == -1) throw std::runtime_error("BUG: could not find edge with label " + c);
-            return optional<pair<int64_t, int64_t>>({p+1, colex}); // First k-mer end after branch
+
+    if(!finimizer_end_colex[finimizer_end].has_value()){
+        throw std::runtime_error("BUG: get_rightmost_branch_end");
+    }
+
+    int64_t colex = finimizer_end_colex[finimizer_end].value();
+    optional<pair<int64_t, int64_t>> best = nullopt;
+    for(int64_t p = finimizer_end; p < kmer_end - 1; p++){
+        if(is_branching(sbwt, colex)){
+            colex = sbwt.forward(colex, query[p+1]);
+            best = {p+1, colex};
+        } else{
+            colex = sbwt.forward(colex, query[p+1]);
         }
     }
-    return nullopt;
+    return best;
+
+    //for(int64_t p = kmer_end - 1; p >= finimizer_end; p--){
+    //    if(finimizer_end_colex[p].has_value() && is_branching(sbwt, finimizer_end_colex[p].value())){
+    //        char c = query[p+1];
+    //        int64_t colex = sbwt.forward(finimizer_end_colex[p].value(), c); // there should be a branch with input[p+1] because if we are in this function, the k-mer we are looking for should exist
+    //        if(colex == -1) throw std::runtime_error("BUG: could not find edge with label " + c);
+    //        return optional<pair<int64_t, int64_t>>({p+1, colex}); // First k-mer end after branch
+    //    }
+    //}
+    //return nullopt;
 }
 
 // Returns the end point (inclusice) of the first k-mer in the concatenation of the unitigs
@@ -173,7 +191,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
             }
         }
     }
-    //for(auto x : shortest_unique_lengths) cout << (x.has_value() ? to_string(x.value()) : "Null") << " "; cout << endl;
+    for(auto x : shortest_unique_lengths) cout << (x.has_value() ? to_string(x.value()) : "Null") << " "; cout << endl;
 
     return {shortest_unique_lengths, shortest_unique_colex_ranks};
 }
