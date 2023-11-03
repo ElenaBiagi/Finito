@@ -55,10 +55,7 @@ size_t size_in_bytes(const sdsl::int_vector<>& LCS, const sdsl::bit_vector& fmin
             // LCS
             sz += sdsl::size_in_bytes(LCS);
             cerr << "LCS size = " << to_string(sdsl::size_in_bytes(LCS)) << endl;
-            // marks
-            sz += sdsl::size_in_bytes(fmin_bv);
-            sz += sdsl::size_in_bytes(fmin_rs);
-            cerr << "fmin marks bitvector size = " << to_string(sdsl::size_in_bytes(fmin_bv)+sdsl::size_in_bytes(fmin_rs)) << endl;
+            // marksRound 3/3
 
             // ids
             sz += sdsl::size_in_bytes(unitigs_v);
@@ -138,11 +135,11 @@ void shortest_unique_search_jarno_rewrite(const sdsl::bit_vector** DNA_bitvector
             // kmer exists
 
             int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
-            optional<int64_t> rightmost_branch_end = get_rightmost_branch_end(kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
+            optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(input, kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
             if(rightmost_branch_end.has_value()) {
                 // Look up from the branch dictionary
-                int64_t p = rightmost_branch_end.value();
-                int64_t colex = shortest_unique_colex_ranks[p].value();
+                int64_t p = rightmost_branch_end.value().first;
+                int64_t colex = rightmost_branch_end.value().second; 
 
                 // Get the global off set of the end of the k-mer
                 int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
