@@ -181,13 +181,13 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sds
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
                 if (freq <= t) { // We found something
-                    new_fmin = {end - start + 1, freq, I_start, end-k +1};
+                    new_fmin = {end - start + 1, freq, I_start,end };// end-k +1
                     if (new_fmin < w_fmin) { w_fmin = new_fmin; }
                 }
             }
         }
         count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin)});// (length,freq,colex)
-        write_fasta({input.substr(i, k)+ ' ' + to_string(get<1>(w_fmin)), input.substr(get<3>(w_fmin), get<0>(w_fmin))}, writer);
+        write_fasta({input.substr(i, k)+ ' ' + to_string(get<1>(w_fmin)), input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1, get<0>(w_fmin))}, writer);
     }
     return count_all_w_fmin;
 }
@@ -217,6 +217,8 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
     // Start is always < k as start <= end and end <k
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
+        cerr << "kmer: " << kmer << endl;
+        cerr << "end: " << end<< endl;
         c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -232,7 +234,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
             I_start = I.first;
             if (freq == 1){ // 1. rarest 
                 while (freq == 1) {  //2. shortest
-                curr_substr = {freq, end - start + 1, I_start, end-k +1};
+                curr_substr = {freq, end - start + 1, I_start, end};
                 // (2) drop the first char
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                 start++;
@@ -243,9 +245,9 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
                 if (w_fmin > curr_substr) {w_fmin = curr_substr;}
                 all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<int64_t>(I.first)});
             }
-
         }
-        if (end > k){
+        if (end >= k -1 ){
+            cerr << kmer << " "<<  input.substr(kmer,k) << endl;
             size_t old_fmin_count = count_all_w_fmin.size();
             count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
             if (old_fmin_count != count_all_w_fmin.size()){
@@ -255,10 +257,10 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
                 }
                 unitigs_k[get<2>(w_fmin)]= id + get<3>(w_fmin);
             }                
-            //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin),get<1>(w_fmin))},writer);
+            write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
-            while ((get<3>(w_fmin)+k-get<1>(w_fmin)) < kmer) { // start
+            while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
                     w_fmin={n_nodes,k+1,kmer+1,str_len};
@@ -307,7 +309,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl
 
             if (freq <= t){ // 1. rarest
                 while (freq <= t){ // 2. shortest
-                curr_substr = {end - start + 1,freq, I_start, end-k +1};
+                curr_substr = {end - start + 1,freq, I_start, end};
                 //all_fmin.insert(curr_substr); // insert every unique substr
 
                 // (2) drop the first char
@@ -326,7 +328,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl
             //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<1>(w_fmin)),input.substr(get<3>(w_fmin),get<0>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
-            while ((get<3>(w_fmin)+k-get<1>(w_fmin)) < kmer) {
+            while (get<3>(w_fmin) < kmer) {
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
                     w_fmin={k+1,n_nodes,kmer+1,str_len};//place holder, will never be selected
