@@ -386,7 +386,8 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
                 //cout << seq << endl;
-                new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
+                //new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, unitigs_k, id);
+                new_search = build_unique_streaming_search_jarno(DNA_rs, sbwt, LCS, seq);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }
@@ -398,11 +399,7 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
             uint32_t len = unitigs.get(unitig_idx, read_buf);
             vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
             for (string& seq : preprocessed_unitigs){
-                //new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
-                //set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors,
-
-                new_search = build_unique_streaming_search_jarno(DNA_rs, sbwt, LCS, seq);
-
+                new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
                 new_number_of_fmin += new_search.size();
                 finimizers.insert(new_search.begin(), new_search.end());
             }    
