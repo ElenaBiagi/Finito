@@ -4,8 +4,8 @@
 #include <algorithm>
 #include "commands.hh"
 #include "globals.hh"
-#include "build_fmin.cpp"
-#include "search_fmin.cpp"
+#include "build_fmin.hh"
+#include "search_fmin.hh"
 
 using namespace std;
 
