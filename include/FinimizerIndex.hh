@@ -22,6 +22,12 @@
 #include "common.hh"
 
 class FinimizerIndex{
+
+private:
+    // Forbid copying because we have pointers to our internal data structures
+    FinimizerIndex(const FinimizerIndex& other) = delete;
+    FinimizerIndex& operator=(const FinimizerIndex& other) = delete;
+
 public:
     unique_ptr<plain_matrix_sbwt_t> sbwt; // These are smart pointers because they are passed in to the constructor
     unique_ptr<sdsl::int_vector<>> LCS; // These are smart pointers because they are passed in to the constructor
@@ -70,7 +76,7 @@ public:
         ifstream fmin_bv_in(index_prefix + ".FBV.sdsl");
         sdsl::load(fmin, fmin_bv_in);
         std::cerr<< "fmin_bv_file loaded"<<std::endl;
-        sdsl::rank_support_v5<> fmin_rs(&fmin);
+        sdsl::util::init_support(fmin_rs, &fmin);
 
         ifstream global_offsets_in(index_prefix + ".O.sdsl");
         sdsl::load(global_offsets, global_offsets_in);
@@ -86,7 +92,7 @@ public:
 
         std::ifstream Ustart_in(index_prefix + ".Ustart.sdsl");
         sdsl::load(Ustart, Ustart_in);
-        sdsl::rank_support_v5<> Ustart_rs(&Ustart);
+        sdsl::util::init_support(Ustart_rs, &Ustart);
         std::cerr << "Ustart loaded" << std::endl;
 
         sbwt = make_unique<plain_matrix_sbwt_t>();

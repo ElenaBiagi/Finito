@@ -170,6 +170,7 @@ pair<vector<int64_t>, int64_t> shortest_unique_search_jarno_rewrite(const Finimi
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
 
+// Old code below
 pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::bit_vector** DNA_bitvectors, const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, const sdsl::rank_support_v5<>& fmin_rs, const  sdsl::int_vector<>& unitigs_v, const sdsl::sd_vector<>& ef_endpoints, const sdsl::rank_support_v5<>& Ustart_rs, vector<int64_t>& found_kmers){ // writer_t& writer
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
@@ -542,7 +543,7 @@ int search_fmin(int argc, char** argv){
 
     options.add_options()
         ("o,out-file", "Output filename.", cxxopts::value<string>())
-        ("i,index-file", "Index input file.This has to be a binary matrix.", cxxopts::value<string>())
+        ("i,index-file", "Index filename prefix", cxxopts::value<string>())
         ("q,query-file", "The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.", cxxopts::value<string>())
         ("z,gzip-output", "Writes output in gzipped form. This can shrink the output files by an order of magnitude.", cxxopts::value<bool>()->default_value("false"))
         ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
