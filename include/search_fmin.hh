@@ -466,11 +466,8 @@ int64_t run_fmin_queries_streaming(reader_t& reader, const FinimizerIndex& index
         count = final_pair.second;
         number_of_queries += out_buffer.size();
         kmers_count += count;
-    
-        for(int64_t x : found_kmers) cout << x << " ";
-        cout << endl;
      
-       total_micros += cur_time_micros() - t0;
+        total_micros += cur_time_micros() - t0;
     }
     write_log("k " + to_string(k), LogLevel::MAJOR);
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
