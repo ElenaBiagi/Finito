@@ -124,7 +124,7 @@ vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, 
 
 // Returns for each endpoint in the query the length of the shortest unique match (if exists)
 // ending there, and the colex of that match
-pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_lengths_and_colex_ranks(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
+pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_lengths_and_colex_ranks(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
     const int64_t n_nodes = sbwt.number_of_subsets();
     const vector<int64_t>& C = sbwt.get_C_array();
     int64_t freq;
@@ -153,8 +153,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
             cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
         } else {
-            const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
-            I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
+            I_new = sbwt.update_sbwt_interval(&c, 1, I);
             //cout << "I_new: " << I_new.first << " " << I_new.second << endl;
 
 
@@ -163,7 +162,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
                 shortest_unique_lengths[end]= optional<int64_t>{};
                 shortest_unique_colex_ranks[end]= optional<int64_t>{};
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
-                I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
+                I_new = sbwt.update_sbwt_interval(&c, 1, I);
             }
             I = I_new;
             freq = (I.second - I.first + 1);
@@ -191,7 +190,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
             }
         }
     }
-    for(auto x : shortest_unique_lengths) cout << (x.has_value() ? to_string(x.value()) : "Null") << " "; cout << endl;
+    //for(auto x : shortest_unique_lengths) cout << (x.has_value() ? to_string(x.value()) : "Null") << " "; cout << endl;
 
     return {shortest_unique_lengths, shortest_unique_colex_ranks};
 }

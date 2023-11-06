@@ -245,7 +245,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
     return count_all_w_fmin;
 }
 
-set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors,
+set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors,
 
     int64_t k = sbwt.get_k();
 
@@ -256,7 +256,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const s
     // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
     vector<optional<int64_t>> shortest_unique_colex_ranks;
 
-    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(DNA_rs, sbwt, LCS, input);
+    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(sbwt, LCS, input);
 
     set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin; // len, freq, colex
     for(int64_t kmer_end = k - 1; kmer_end < input.size(); kmer_end++){
