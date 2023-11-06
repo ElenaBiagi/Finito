@@ -29,7 +29,7 @@ public:
     sdsl::bit_vector fmin;
     sdsl::rank_support_v5<> fmin_rs;
     sdsl::int_vector<> global_offsets;
-    sdsl::int_vector<> Ustart;
+    sdsl::bit_vector Ustart;
     sdsl::rank_support_v5<> Ustart_rs;
 
     FinimizerIndex() {}
@@ -38,12 +38,53 @@ public:
         // TODO
     }
 
-    void serialize(ostream& out) {
-        // TODO
+    void serialize(const string& index_prefix) {
+        save_v(index_prefix + ".O.sdsl", global_offsets);
+        save_bv(index_prefix + ".FBV.sdsl", fmin);
+
+        std::ofstream packed_unitigs_out(index_prefix + ".packed_unitigs.sdsl");
+        sdsl::serialize(unitigs.concat, packed_unitigs_out);
+        
+        std::ofstream unitig_endpoints_out(index_prefix + ".unitig_endpoints.sdsl");
+        sdsl::serialize(unitigs.ends, unitig_endpoints_out);
+
+        std::ofstream Ustart_out(index_prefix + ".Ustart.sdsl");
+        sdsl::serialize(Ustart, Ustart_out);
+
+        std::ofstream LCS_out(index_prefix + ".LCS.sdsl");
+        sdsl::serialize(LCS, LCS_out);
+
+        sbwt.serialize(index_prefix + ".sbwt");
     }
 
-    void load(istream& in) {
-        // TODO
+    void load(const string& index_prefix) {
+
+        string LCS_file = index_prefix + ".LCS.sdsl";
+        load_v(LCS_file, LCS);
+        std::cerr<< "LCS_file loaded"<<std::endl;
+
+        string fmin_bv_file = index_prefix + ".FBV.sdsl";
+        load_bv(fmin_bv_file, fmin);
+        std::cerr<< "fmin_bv_file loaded"<<std::endl;
+        sdsl::rank_support_v5<> fmin_rs(&fmin);
+
+        string global_offsets_file = index_prefix + ".O.sdsl";
+        load_v(global_offsets_file, global_offsets);
+        std::cerr<< "offsets loaded"<<std::endl;
+
+        std::ifstream packed_unitigs_in(index_prefix + ".packed_unitigs.sdsl");
+        sdsl::load(unitigs.concat, packed_unitigs_in);
+        std::cerr << "unitigs loaded" << std::endl;
+
+        std::ifstream unitig_endpoints_in(index_prefix + ".unitig_endpoints.sdsl");
+        sdsl::load(unitigs.ends, unitig_endpoints_in);
+        std::cerr << "unitig endpoints loaded" << std::endl;
+
+        std::ifstream Ustart_in(index_prefix + ".Ustart.sdsl");
+        sdsl::load(Ustart, Ustart_in);
+        sdsl::rank_support_v5<> Ustart_rs(&Ustart);
+        std::cerr << "Ustart loaded" << std::endl;
+
     }
 
     void space_in_bytes(){
