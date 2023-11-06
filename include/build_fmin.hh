@@ -270,8 +270,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const p
     
 }
 
-template<typename writer_t>
-set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer){ //const sdsl::bit_vector** DNA_bitvectors,
+set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t){ //const sdsl::bit_vector** DNA_bitvectors,
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -296,10 +295,8 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl
            std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
         } else {
-            //const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
-            const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
             //update the sbwt INTERVAL
-            I = update_sbwt_interval(C[char_idx], I, Bit_rs);
+            I = sbwt.update_sbwt_interval(&c, 1, I);
             freq = (I.second - I.first + 1);
             I_start = I.first;
 
@@ -338,6 +335,18 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search( const sdsl
     return count_all_w_fmin;
 }
 
+template<typename reader_t>
+void print_shortest_finimizer_stats(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, reader_t& reader, int64_t t){
+    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
+    while(true){
+        int64_t len = reader.get_next_read_to_buffer();
+        if(len == 0) [[unlikely]] break;
+        set<tuple<int64_t,int64_t, int64_t>> w_fmin = build_shortest_streaming_search(sbwt, LCS, reader.read_buf, t);
+        count_all_w_fmin.insert(w_fmin.begin(), w_fmin.end());
+    }
+    print_finimizer_stats(count_all_w_fmin, sbwt.number_of_kmers(), sbwt.number_of_subsets(), t);
+}
+
 vector<string> remove_ns(const string& unitig, const int64_t k){
     vector<string> new_unitigs;
     const int64_t str_len = unitig.size();
@@ -365,17 +374,19 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
 template<typename sbwt_t, typename reader_t>
 void run_fmin_streaming(reader_t& reader, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
 
-    if(t != 1){
-        throw std::runtime_error("t != 1 not supported currently");
+
+    if(type == "rarest"){
+        if(t != 1){
+            throw std::runtime_error("t != 1 does not make sense with rarest type");
+        }
+
+        FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader);
+        unique_ptr<FinimizerIndex> index = builder.get_index();
+        index->serialize(index_prefix);
+    } else if(type == "shortest"){
+        print_shortest_finimizer_stats(*sbwt, *LCS, reader, t);
     }
 
-    if(type != "rarest"){
-        throw std::runtime_error("Only rarest is supported currently");
-    }
-
-    FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader);
-    unique_ptr<FinimizerIndex> index = builder.get_index();
-    index->serialize(index_prefix);
 }
 
 template<typename sbwt_t, typename reader_t>
