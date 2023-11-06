@@ -85,6 +85,8 @@ public:
         sdsl::rank_support_v5<> Ustart_rs(&Ustart);
         std::cerr << "Ustart loaded" << std::endl;
 
+        sbwt.load(index_prefix + ".sbwt");
+
     }
 
     void space_in_bytes(){
