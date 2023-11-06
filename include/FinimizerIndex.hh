@@ -160,6 +160,8 @@ public:
             packed_global_offsets[i] = global_offsets[i];
         }
     
+        print_stats(finimizers, this->sbwt->number_of_kmers(), this->sbwt->number_of_subsets(), 1);
+
         index->sbwt = std::move(this->sbwt); // Transfer ownership
         index->LCS = std::move(this->LCS); // Transfer ownership 
         index->unitigs = std::move(unitigs); // Transfer ownership
@@ -169,7 +171,6 @@ public:
         index->Ustart = std::move(Ustart); // Transfer ownership
         index->Ustart_rs = sdsl::rank_support_v5<>(&(index->Ustart)); 
 
-        print_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), 1);
         
     }
 
