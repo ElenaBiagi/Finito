@@ -121,8 +121,7 @@ void write_csv(const tuple<string, string, string, string,string>& p, writer_t& 
     out.write(&newline, 1);
 }
 
-template<typename writer_t>
-set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const string& input, const char t, writer_t& writer) {
+set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plain_matrix_sbwt_t& sbwt, const string& input, const char t) {
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t> &C = sbwt.get_C_array();
@@ -147,8 +146,7 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sds
             for (int64_t end = start; end < k + i; end++) {
                 c = static_cast<char>(input[end] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
                 char_idx = get_char_idx(c);
-                const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
-                I = update_sbwt_interval(C[char_idx], I, Bit_rs);
+                I = sbwt.update_sbwt_interval(&c, 1, I);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
                 if (freq <= t) { // We found something
@@ -158,7 +156,7 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search( const sds
             }
         }
         count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin)});// (length,freq,colex)
-        write_fasta({input.substr(i, k)+ ' ' + to_string(get<1>(w_fmin)), input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1, get<0>(w_fmin))}, writer);
+        //write_fasta({input.substr(i, k)+ ' ' + to_string(get<1>(w_fmin)), input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1, get<0>(w_fmin))}, writer);
     }
     return count_all_w_fmin;
 }
@@ -384,7 +382,21 @@ void run_fmin_streaming(reader_t& reader, const string& index_prefix, unique_ptr
         unique_ptr<FinimizerIndex> index = builder.get_index();
         index->serialize(index_prefix);
     } else if(type == "shortest"){
+        // Just print stats because we don't have an index for this yet
         print_shortest_finimizer_stats(*sbwt, *LCS, reader, t);
+    } else if(type == "verify"){
+        // Print stats on shortest finimizers based on a reference implementation
+        set<tuple<int64_t,int64_t, int64_t>> finimizers;
+        while(true){
+            int64_t len = reader.get_next_read_to_buffer();
+            if(len == 0) [[unlikely]] break;
+            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, sbwt->get_k());
+            for (string& seq : preprocessed_unitigs){
+                set<tuple<int64_t, int64_t, int64_t>> new_search = verify_shortest_streaming_search(*sbwt, seq, t);
+                finimizers.insert(new_search.begin(), new_search.end());
+            }
+        }
+        print_finimizer_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), t);    
     }
 
 }
