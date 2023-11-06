@@ -474,7 +474,6 @@ int search_fmin(int argc, char** argv){
         ("i,index-file", "Index filename prefix", cxxopts::value<string>())
         ("q,query-file", "The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.", cxxopts::value<string>())
         ("z,gzip-output", "Writes output in gzipped form. This can shrink the output files by an order of magnitude.", cxxopts::value<bool>()->default_value("false"))
-        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
         ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string,cxxopts::value<string>()->default_value("rarest"))
         ("h,help", "Print usage")
     ;
@@ -486,8 +485,6 @@ int search_fmin(int argc, char** argv){
         std::cerr << options.help() << std::endl;
         exit(1);
     }
-
-    char t = opts["t"].as<int64_t>();
 
     // TODO add type, only rarest now
     string type = opts["type"].as<string>();
