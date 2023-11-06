@@ -89,7 +89,7 @@ public:
 
     }
 
-    void space_in_bytes(){
+    void size_in_bytes(){
         // TODO
     }
 };
@@ -102,6 +102,25 @@ public:
     unique_ptr<sdsl::int_vector<>> LCS;
 
     unique_ptr<FinimizerIndex> index;
+
+    void print_stats(set<tuple<int64_t, int64_t, int64_t>> finimizers, int64_t n_kmers, int64_t n_nodes, int64_t t){
+        int64_t new_number_of_fmin = finimizers.size();
+        int64_t sum_freq = 0;
+        int64_t sum_len = 0;
+        for (auto x : finimizers){
+            sum_freq += get<1>(x);
+            sum_len += get<0>(x);
+        }
+
+        string results = to_string(new_number_of_fmin) + "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq) / static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len) / static_cast<float>(new_number_of_fmin)) + "," + to_string(n_kmers);
+
+        write_log(to_string(t) + "," + results, LogLevel::MAJOR);
+        write_log("#SBWT nodes: " + to_string(n_nodes) , LogLevel::MAJOR);
+        write_log("#Distinct finimizers: " + to_string(new_number_of_fmin) , LogLevel::MAJOR);
+        write_log("Sum of frequencies: " + to_string(sum_freq) , LogLevel::MAJOR);
+        write_log("Avg frequency: " + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
+        write_log("Avg length: " + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
+    }
 
     // Takes ownership of sbwt and LCS
     template<typename reader_t>
@@ -121,13 +140,14 @@ public:
         PackedStrings& unitigs = unitig_data.first;
         sdsl::bit_vector& Ustart = unitig_data.second;
 
+        set<tuple<int64_t, int64_t, int64_t>>  finimizers;
         int64_t total_len = 0;
         vector<char> unitig_buf;
         for(int64_t i = 0; i < unitigs.number_of_strings(); i++){
             int64_t len = unitigs.get(i, unitig_buf);
-            vector<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len);
+            set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len);
             total_len += len; 
-            // Todo: gather statistics on new_search
+            finimizers.insert(new_search.begin(), new_search.end());
         }
 
         sdsl::int_vector<> packed_global_offsets(global_offsets.size(), 64 - __builtin_clzll(total_len));
@@ -143,6 +163,8 @@ public:
         index->global_offsets = std::move(packed_global_offsets); // Transfer ownership
         index->Ustart = std::move(Ustart); // Transfer ownership
         index->Ustart_rs = sdsl::rank_support_v5<>(&(index->Ustart)); 
+
+        print_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), 1);
         
     }
 
