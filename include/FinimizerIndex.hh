@@ -23,9 +23,9 @@
 
 class FinimizerIndex{
 public:
-    plain_matrix_sbwt_t sbwt;
+    unique_ptr<plain_matrix_sbwt_t> sbwt; // These are smart pointers because they are passed in to the constructor
+    unique_ptr<sdsl::int_vector<>> LCS; // These are smart pointers because they are passed in to the constructor
     PackedStrings unitigs;
-    sdsl::int_vector<> LCS;
     sdsl::bit_vector fmin;
     sdsl::rank_support_v5<> fmin_rs;
     sdsl::int_vector<> global_offsets;
@@ -39,8 +39,11 @@ public:
     }
 
     void serialize(const string& index_prefix) {
-        save_v(index_prefix + ".O.sdsl", global_offsets);
-        save_bv(index_prefix + ".FBV.sdsl", fmin);
+        std::ofstream global_offsets_out(index_prefix + ".O.sdsl");
+        sdsl::serialize(global_offsets, global_offsets_out);
+
+        std::ofstream fmin_out(index_prefix + ".FBV.sdsl");
+        sdsl::serialize(fmin, fmin_out);
 
         std::ofstream packed_unitigs_out(index_prefix + ".packed_unitigs.sdsl");
         sdsl::serialize(unitigs.concat, packed_unitigs_out);
@@ -52,24 +55,25 @@ public:
         sdsl::serialize(Ustart, Ustart_out);
 
         std::ofstream LCS_out(index_prefix + ".LCS.sdsl");
-        sdsl::serialize(LCS, LCS_out);
+        sdsl::serialize(*LCS, LCS_out);
 
-        sbwt.serialize(index_prefix + ".sbwt");
+        sbwt->serialize(index_prefix + ".sbwt");
     }
 
     void load(const string& index_prefix) {
 
-        string LCS_file = index_prefix + ".LCS.sdsl";
-        load_v(LCS_file, LCS);
+        LCS = make_unique<sdsl::int_vector<>>();
+        ifstream LCS_in(index_prefix + ".LCS.sdsl");
+        sdsl::load(*LCS, LCS_in);
         std::cerr<< "LCS_file loaded"<<std::endl;
 
-        string fmin_bv_file = index_prefix + ".FBV.sdsl";
-        load_bv(fmin_bv_file, fmin);
+        ifstream fmin_bv_in(index_prefix + ".FBV.sdsl");
+        sdsl::load(fmin, fmin_bv_in);
         std::cerr<< "fmin_bv_file loaded"<<std::endl;
         sdsl::rank_support_v5<> fmin_rs(&fmin);
 
-        string global_offsets_file = index_prefix + ".O.sdsl";
-        load_v(global_offsets_file, global_offsets);
+        ifstream global_offsets_in(index_prefix + ".O.sdsl");
+        sdsl::load(global_offsets, global_offsets_in);
         std::cerr<< "offsets loaded"<<std::endl;
 
         std::ifstream packed_unitigs_in(index_prefix + ".packed_unitigs.sdsl");
@@ -85,7 +89,8 @@ public:
         sdsl::rank_support_v5<> Ustart_rs(&Ustart);
         std::cerr << "Ustart loaded" << std::endl;
 
-        sbwt.load(index_prefix + ".sbwt");
+        sbwt = make_unique<plain_matrix_sbwt_t>();
+        sbwt->load(index_prefix + ".sbwt");
 
     }
 
@@ -123,11 +128,11 @@ public:
     }
 
     // Takes ownership of sbwt and LCS
-    template<typename reader_t>
-    FinimizerIndexBuilder(unique_ptr<plain_matrix_sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, reader_t& reader) : sbwt(sbwt) {
+    template<typename reader_t, typename writer_t>
+    FinimizerIndexBuilder(unique_ptr<plain_matrix_sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, reader_t& reader, writer_t& writer) {
         index = make_unique<FinimizerIndex>();
-        this->sbwt = sbwt; // Take ownership
-        this->LCS = LCS; // Take ownership
+        this->sbwt = move(sbwt); // Take ownership
+        this->LCS = move(LCS); // Take ownership
 
         int64_t n_nodes = this->sbwt->number_of_subsets();
         sdsl::bit_vector fmin_bv(n_nodes, 0); // Finimizer marks
@@ -145,7 +150,7 @@ public:
         vector<char> unitig_buf;
         for(int64_t i = 0; i < unitigs.number_of_strings(); i++){
             int64_t len = unitigs.get(i, unitig_buf);
-            set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len);
+            set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len, writer);
             total_len += len; 
             finimizers.insert(new_search.begin(), new_search.end());
         }
@@ -155,8 +160,8 @@ public:
             packed_global_offsets[i] = global_offsets[i];
         }
     
-        index->sbwt = sbwt; // Transfer ownership
-        index->LCS = LCS; // Transfer ownership 
+        index->sbwt = std::move(this->sbwt); // Transfer ownership
+        index->LCS = std::move(this->LCS); // Transfer ownership 
         index->unitigs = std::move(unitigs); // Transfer ownership
         index->fmin = std::move(fmin_bv); // Transfer ownership
         index->fmin_rs = sdsl::rank_support_v5<>(&(index->fmin));
@@ -169,7 +174,8 @@ public:
     }
 
     // TODO: 32 bits for global offsets might not be enough
-    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, vector<uint32_t>& global_offsets, const int64_t unitig_start) {
+    template<typename writer_t>
+    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, vector<uint32_t>& global_offsets, const int64_t unitig_start, writer_t& writer) {
         const int64_t n_nodes = sbwt->number_of_subsets();
         const int64_t k = sbwt->get_k();
         const vector<int64_t>& C = sbwt->get_C_array();
@@ -231,7 +237,7 @@ public:
                 if (get<3>(w_fmin) >= k-1){
                     fmin_found[get<2>(w_fmin)] = 1;
                 }
-                //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
+                // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
                 kmer++;
                 // Check if the current minimizer is still in this window
                 while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start

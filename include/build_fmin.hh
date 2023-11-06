@@ -16,6 +16,7 @@
 #include "sbwt/SeqIO.hh"
 #include "sbwt/buffered_streams.hh"
 #include "PackedStrings.hh"
+#include "FinimizerIndex.hh"
 #include <vector>
 #include <utility>
 #include <algorithm>
@@ -362,7 +363,15 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const string& indexfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs,  const sdsl::int_vector<>& LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k, const sdsl::bit_vector** DNA_bitvectors,
+void run_fmin_streaming(reader_t& reader, writer_t& writer, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
+
+    if(t != 1){
+        throw std::runtime_error("t != 1 not supported currently");
+    }
+    FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader, writer);
+    unique_ptr<FinimizerIndex> index = builder.get_index();
+    index->serialize(index_prefix);
+/*
     int64_t new_number_of_fmin = 0;
 
     pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(sbwt, reader, indexfile);
@@ -487,20 +496,21 @@ sdsl::bit_vector run_fmin_streaming(reader_t& reader, writer_t& writer, const st
     }
     
     return fmin_bv;
+    */
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_file_fmin(const string& infile, const string& outfile, const string& indexfile, const sbwt_t& sbwt, const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+int64_t run_file_fmin(const string& infile, const string& outfile, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
     reader_t reader(infile);
     writer_t writer(outfile);
     //Assume sbwt has streaming support
     write_log("Searching Finimizers from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-    sdsl::bit_vector fmin_bv = run_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, writer, indexfile, sbwt,  DNA_rs, LCS, t, type); // C,k,DNA_bitvectors,
+    run_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, writer, index_prefix, move(sbwt), move(LCS), t, type); // C,k,DNA_bitvectors,
     return 0;
 }
 
 template<typename sbwt_t>
-int64_t fmin_search(const vector<string>& infiles, const string& outfile, const string& indexfile, const sbwt_t& sbwt,  const sdsl::rank_support_v5<>** DNA_rs, const sdsl::int_vector<>& LCS, const char t,const string& type, bool gzip_output){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+int64_t fmin_search(const vector<string>& infiles, const string& outfile, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t,const string& type, bool gzip_output){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
 
     typedef SeqIO::Reader<Buffered_ifstream<zstr::ifstream>> in_gzip;
     typedef SeqIO::Reader<Buffered_ifstream<std::ifstream>> in_no_gzip;
@@ -512,16 +522,16 @@ int64_t fmin_search(const vector<string>& infiles, const string& outfile, const 
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
         if(gzip_input && gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_gzip>(infiles[i], outfile, indexfile, sbwt,  DNA_rs, LCS,t, type); // DNA_bitvectors,
+            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type); // DNA_bitvectors,
         }
         if(gzip_input && !gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfile, indexfile, sbwt,DNA_rs, LCS,t, type);
+            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type);
         }
         if(!gzip_input && gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfile, indexfile, sbwt,DNA_rs, LCS,t, type);
+            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type);
         }
         if(!gzip_input && !gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfile, indexfile, sbwt, DNA_rs, LCS,t, type);
+            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type);
         }
     }
 
@@ -596,8 +606,8 @@ int build_fmin(int argc, char** argv) {
     write_log("Loading the index variant " + variant, LogLevel::MAJOR);
     if (variant == "plain-matrix") {
 
-        plain_matrix_sbwt_t sbwt;
-        sbwt.load(in.stream);
+        unique_ptr<plain_matrix_sbwt_t> sbwt = make_unique<plain_matrix_sbwt_t>();
+        sbwt->load(in.stream);
 
         string type = opts["type"].as<string>();
         if(std::find(types.begin(), types.end(), type) == types.end()){
@@ -606,37 +616,31 @@ int build_fmin(int argc, char** argv) {
             return 1;
         }
 
-        const sdsl::bit_vector& A_bits = sbwt.get_subset_rank_structure().A_bits;
-        const sdsl::bit_vector& C_bits = sbwt.get_subset_rank_structure().C_bits;
-        const sdsl::bit_vector& G_bits = sbwt.get_subset_rank_structure().G_bits;
-        const sdsl::bit_vector& T_bits = sbwt.get_subset_rank_structure().T_bits;
+        const sdsl::bit_vector& A_bits = sbwt->get_subset_rank_structure().A_bits;
+        const sdsl::bit_vector& C_bits = sbwt->get_subset_rank_structure().C_bits;
+        const sdsl::bit_vector& G_bits = sbwt->get_subset_rank_structure().G_bits;
+        const sdsl::bit_vector& T_bits = sbwt->get_subset_rank_structure().T_bits;
 
-        const sdsl::rank_support_v5<> &A_bits_rs = sbwt.get_subset_rank_structure().A_bits_rs;
-        const sdsl::rank_support_v5<> &C_bits_rs = sbwt.get_subset_rank_structure().C_bits_rs;
-        const sdsl::rank_support_v5<> &G_bits_rs = sbwt.get_subset_rank_structure().G_bits_rs;
-        const sdsl::rank_support_v5<> &T_bits_rs = sbwt.get_subset_rank_structure().T_bits_rs;
+        const sdsl::rank_support_v5<> &A_bits_rs = sbwt->get_subset_rank_structure().A_bits_rs;
+        const sdsl::rank_support_v5<> &C_bits_rs = sbwt->get_subset_rank_structure().C_bits_rs;
+        const sdsl::rank_support_v5<> &G_bits_rs = sbwt->get_subset_rank_structure().G_bits_rs;
+        const sdsl::rank_support_v5<> &T_bits_rs = sbwt->get_subset_rank_structure().T_bits_rs;
 
-        const int64_t n_nodes = sbwt.number_of_subsets();
-        const int64_t k = sbwt.get_k();
-
-
-        const vector<int64_t> &C = sbwt.get_C_array();
-
-        //const sdsl::bit_vector *DNA_bitvectors[4] = {&A_bits, &C_bits, &G_bits, &T_bits};
-        const sdsl::rank_support_v5<> *DNA_rs[4] = {&A_bits_rs, &C_bits_rs, &G_bits_rs, &T_bits_rs};
+        const int64_t n_nodes = sbwt->number_of_subsets();
+        const int64_t k = sbwt->get_k();
 
         string LCS_file = opts["lcs"].as<string>();
         if (LCS_file.empty()) {
             std::cerr<< "LCS_file empty" << std::endl;
-            LCS_file = indexfile + "LCS.sdsl";
-            const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(sbwt, 8);
-            //const sdsl::int_vector<> LCS = lcs_basic_algorithm(sbwt);
+            LCS_file = indexfile + ".LCS.sdsl";
+            const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(*sbwt, 8);
+            //const sdsl::int_vector<> LCS = lcs_basic_algorithm(*sbwt);
             save_v(LCS_file, LCS);
         }
-        sdsl::int_vector<> LCS;
-        load_v(LCS_file, LCS);
+        unique_ptr<sdsl::int_vector<>> LCS = make_unique<sdsl::int_vector<>>();
+        load_v(LCS_file, *LCS);
         std::cerr<< "LCS_file loaded" << std::endl;
-        fmin_search(input_files, outfile, indexfile, sbwt, DNA_rs, LCS,t, type, gzip_output);//DNA_bitvectors,
+        fmin_search(input_files, outfile, indexfile, move(sbwt), move(LCS), t, type, gzip_output);//DNA_bitvectors,
 
     }
     return 0;
