@@ -98,75 +98,6 @@ inline void print_vector(const vector<int64_t>& v, writer_t& out){
 }
 
 
-pair<vector<int64_t>, int64_t> shortest_unique_search_jarno_rewrite(const FinimizerIndex& index, const string& input, vector<int64_t>& found_kmers){
-
-    // For each k-mer S that is known to be in the SBWT
-    //   - Find the finimizer x.
-    //   - Walk forward in the SBWT from the colex rank of x (singleton interval), to the end of S,
-    //     recording the rightmost branch point, and the distance from the end of x to this branch
-    //     point.
-    //   - If a branch point was found, the k-mer containing x is at the unitig after the rightmost
-    //     branch. Otherwise, the k-mer containing x is at the unitig that x points to.
-    //   - If there was a branch, the k- mer endpoint in that unitig is k + the number of steps taken after the last branch.
-    //     
-
-    const plain_matrix_sbwt_t& sbwt = *(index.sbwt);
-    const int64_t n_nodes = sbwt.number_of_subsets();
-    const int64_t k = sbwt.get_k();
-    const vector<int64_t>& C = sbwt.get_C_array();
-
-    if(input.size() < k) return {found_kmers, 0};
-
-    // For each position of the input, the SBWT colex rank of the k-mer that ends there, if exists.
-    // A k-mer does not exist if the ending position is too close to the start of the input, or the SBWT does
-    // not contain that k-mer.
-    vector<optional<int64_t>> kmer_colex_ranks = get_kmer_colex_ranks(sbwt, input);
-
-    // For each position of the input, the length of the shortest unique substring that ends there, if exists
-    // Unique substrings may not exist near the start of the input.
-    vector<optional<int64_t>> shortest_unique_lengths;
-
-    // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
-    vector<optional<int64_t>> shortest_unique_colex_ranks;
-
-    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(sbwt, *(index.LCS), input);
-
-    for(int64_t kmer_end = k-1; kmer_end < input.size(); kmer_end++) {
-        if(kmer_colex_ranks[kmer_end].has_value()){
-            // kmer exists
-
-            int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
-            optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(input, kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
-            if(rightmost_branch_end.has_value()) {
-                // Look up from the branch dictionary
-                int64_t p = rightmost_branch_end.value().first;
-                int64_t colex = rightmost_branch_end.value().second; 
-
-                // Get the global off set of the end of the k-mer
-                int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, index.Ustart_rs, index.unitigs);
-                global_kmer_end += kmer_end - p;
-                found_kmers[kmer_end - (k-1)] = global_kmer_end;
-            } else {
-                // Look up from Finimizer dictionary
-                int64_t p = finimizer_end;
-                int64_t colex = shortest_unique_colex_ranks[p].value();
-                int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, index.fmin_rs, index.global_offsets);
-                global_kmer_end += kmer_end - p;
-                found_kmers[kmer_end - (k-1)] = global_kmer_end;
-            }
-        }        
-    }
-
-    //for(auto x : kmer_colex_ranks) cout << (x.has_value() ? to_string(x.value()) : "-") << " "; cout << endl;
-    int64_t n_found = 0;
-    for(optional<int64_t> x : kmer_colex_ranks) n_found += x.has_value();
-
-    return {found_kmers, n_found};
-}
-
-
-
-
 // Here you are noT sure to find the interval as when building fmin
 //template<typename writer_t>
 
@@ -458,7 +389,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, const FinimizerIndex& index
         int64_t t0 = cur_time_micros();
         vector<int64_t> found_kmers(len - k + 1,-1);
         //pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, global_offsets, ef_endpoints, Ustart_rs, found_kmers);
-        auto final_pair = shortest_unique_search_jarno_rewrite(index, reader.read_buf, found_kmers);
+        auto final_pair = index.search(reader.read_buf, found_kmers);
 
         for(int64_t x : final_pair.first) cout << x << " "; cout << endl;
 

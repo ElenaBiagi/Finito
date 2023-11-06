@@ -40,11 +40,72 @@ public:
 
     FinimizerIndex() {}
 
-    void search(const std::string& query) {
-        // TODO
+    pair<vector<int64_t>, int64_t> search(const std::string& query, vector<int64_t>& found_kmers) const {
+        // For each k-mer S that is known to be in the SBWT
+        //   - Find the finimizer x.
+        //   - Walk forward in the SBWT from the colex rank of x (singleton interval), to the end of S,
+        //     recording the rightmost branch point, and the distance from the end of x to this branch
+        //     point.
+        //   - If a branch point was found, the k-mer containing x is at the unitig after the rightmost
+        //     branch. Otherwise, the k-mer containing x is at the unitig that x points to.
+        //   - If there was a branch, the k- mer endpoint in that unitig is k + the number of steps taken after the last branch.
+        //     
+
+        const plain_matrix_sbwt_t& sbwt = *(this->sbwt.get());
+        const int64_t n_nodes = sbwt.number_of_subsets();
+        const int64_t k = sbwt.get_k();
+        const vector<int64_t>& C = sbwt.get_C_array();
+
+        if(query.size() < k) return {found_kmers, 0};
+
+        // For each position of the input, the SBWT colex rank of the k-mer that ends there, if exists.
+        // A k-mer does not exist if the ending position is too close to the start of the input, or the SBWT does
+        // not contain that k-mer.
+        vector<optional<int64_t>> kmer_colex_ranks = get_kmer_colex_ranks(sbwt, query);
+
+        // For each position of the input, the length of the shortest unique substring that ends there, if exists
+        // Unique substrings may not exist near the start of the input.
+        vector<optional<int64_t>> shortest_unique_lengths;
+
+        // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
+        vector<optional<int64_t>> shortest_unique_colex_ranks;
+
+        std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(sbwt, *LCS, query);
+
+        for(int64_t kmer_end = k-1; kmer_end < query.size(); kmer_end++) {
+            if(kmer_colex_ranks[kmer_end].has_value()){
+                // kmer exists
+
+                int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
+                optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
+                if(rightmost_branch_end.has_value()) {
+                    // Look up from the branch dictionary
+                    int64_t p = rightmost_branch_end.value().first;
+                    int64_t colex = rightmost_branch_end.value().second; 
+
+                    // Get the global off set of the end of the k-mer
+                    int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
+                    global_kmer_end += kmer_end - p;
+                    found_kmers[kmer_end - (k-1)] = global_kmer_end;
+                } else {
+                    // Look up from Finimizer dictionary
+                    int64_t p = finimizer_end;
+                    int64_t colex = shortest_unique_colex_ranks[p].value();
+                    int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
+                    global_kmer_end += kmer_end - p;
+                    found_kmers[kmer_end - (k-1)] = global_kmer_end;
+                }
+            }        
+        }
+
+        //for(auto x : kmer_colex_ranks) cout << (x.has_value() ? to_string(x.value()) : "-") << " "; cout << endl;
+        int64_t n_found = 0;
+        for(optional<int64_t> x : kmer_colex_ranks) n_found += x.has_value();
+
+        return {found_kmers, n_found};
     }
 
-    void serialize(const string& index_prefix) {
+    void serialize(const string& index_prefix) const {
         std::ofstream global_offsets_out(index_prefix + ".O.sdsl");
         sdsl::serialize(global_offsets, global_offsets_out);
 
@@ -100,7 +161,7 @@ public:
 
     }
 
-    void size_in_bytes(){
+    void size_in_bytes() const{
         // TODO
     }
 };
