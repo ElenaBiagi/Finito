@@ -222,9 +222,11 @@ public:
             finimizers.insert(new_search.begin(), new_search.end());
         }
 
-        sdsl::int_vector<> packed_global_offsets(global_offsets.size(), 64 - __builtin_clzll(total_len));
+        sdsl::int_vector<> packed_global_offsets(finimizers.size(), 64 - __builtin_clzll(total_len));
+        
+        int64_t global_offsets_idx = 0;
         for(int64_t i = 0; i < global_offsets.size(); i++){
-            packed_global_offsets[i] = global_offsets[i];
+            if(fmin_bv[i]) packed_global_offsets[global_offsets_idx++] = global_offsets[i];
         }
     
         print_stats(finimizers, this->sbwt->number_of_kmers(), this->sbwt->number_of_subsets(), 1);
