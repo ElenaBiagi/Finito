@@ -310,6 +310,7 @@ pair<vector<int64_t>, int64_t> rarest_fmin_streaming_search(const sdsl::bit_vect
                             // we have the I_start and the pos of the char preceding the branch in the query
                             c = static_cast<char>(input[l_branch.first] & ~32); // branching char
                             char_idx = get_char_idx(c);
+                            //pair<int64_t, int64_t> I_branch = sbwt.update_sbwt_interval(&c, 1, {l_branch.second,l_branch.second});
                             pair<int64_t, int64_t> I_branch = update_sbwt_interval(C[char_idx], {l_branch.second,l_branch.second}, Bit_rs);
                             unitig_id= Ustart_rs(unitig_start);
                             ef_endpoints[unitig_id];// correct finimizer

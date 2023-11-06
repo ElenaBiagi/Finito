@@ -6,6 +6,7 @@
 #include "globals.hh"
 #include "build_fmin.hh"
 #include "search_fmin.hh"
+#include "FinimizerIndex.hh"
 
 using namespace std;
 
