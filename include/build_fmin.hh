@@ -368,135 +368,14 @@ void run_fmin_streaming(reader_t& reader, writer_t& writer, const string& index_
     if(t != 1){
         throw std::runtime_error("t != 1 not supported currently");
     }
+
+    if(type != "rarest"){
+        throw std::runtime_error("Only rarest is supported currently");
+    }
+
     FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader, writer);
     unique_ptr<FinimizerIndex> index = builder.get_index();
     index->serialize(index_prefix);
-/*
-    int64_t new_number_of_fmin = 0;
-
-    pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(sbwt, reader, indexfile);
-    PackedStrings& unitigs = unitig_data.first;
-    sdsl::bit_vector& Ustart = unitig_data.second;
-
-    set<tuple<int64_t, int64_t, int64_t>> new_search;
-    set<tuple<int64_t, int64_t, int64_t>>  finimizers;
-    const int64_t k = sbwt.get_k();
-
-    int64_t id = 0;
-    int64_t n_nodes = sbwt.number_of_subsets();
-    sdsl::bit_vector fmin_bv(n_nodes);
-    sdsl::bit_vector fmin_found(n_nodes);
-    vector<uint32_t> unitigs_k; // global offsets
-    unitigs_k.reserve(n_nodes);
-    unitigs_k.resize(n_nodes, 0);
-    vector<int64_t> endpoints;
-    vector<char> read_buf;
-    //sdsl::int_vector endpoints;
-    if (type == "rarest"){
-        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
-            uint32_t len = unitigs.get(unitig_idx, read_buf);
-            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
-            for (string& seq : preprocessed_unitigs){
-                //cout << seq << endl;
-                new_search = build_rarest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer, fmin_bv, fmin_found, unitigs_k, id);
-                //new_search = build_unique_streaming_search_jarno(DNA_rs, sbwt, LCS, seq);
-                new_number_of_fmin += new_search.size();
-                finimizers.insert(new_search.begin(), new_search.end());
-            }
-            id += len; //end point
-            endpoints.push_back(id);// first char of the next string 
-        }
-    } else if (type == "shortest") {
-        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
-            uint32_t len = unitigs.get(unitig_idx, read_buf);
-            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
-            for (string& seq : preprocessed_unitigs){
-                new_search = build_shortest_streaming_search(DNA_rs, sbwt ,LCS,seq, t, writer);
-                new_number_of_fmin += new_search.size();
-                finimizers.insert(new_search.begin(), new_search.end());
-            }    
-        }
-    } else if (type == "verify"){
-        for(int64_t unitig_idx = 0; unitig_idx < unitigs.number_of_strings(); unitig_idx++){
-            uint32_t len = unitigs.get(unitig_idx, read_buf);
-            vector<string> preprocessed_unitigs = remove_ns(read_buf.data(), k);
-            for (string& seq : preprocessed_unitigs){
-                new_search = verify_shortest_streaming_search(DNA_rs, sbwt ,seq, t, writer);
-                new_number_of_fmin += new_search.size();
-                finimizers.insert(new_search.begin(), new_search.end());
-            }
-        }
-    }
-    // (length,freq,colex)
-    new_number_of_fmin = finimizers.size();
-    int64_t sum_freq = 0;
-    int64_t sum_len = 0;
-    for (auto x : finimizers){
-        sum_freq += get<1>(x);
-        sum_len += get<0>(x);
-        //fmin_bv[get<2>(x)] = 1;
-    }
-    tuple<string, string, string, string, string> stats = {to_string(t),to_string( new_number_of_fmin),to_string(sum_freq), to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)), to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) };
-    std::ofstream outfile;
-    string results = to_string(new_number_of_fmin) + "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq) / static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len) / static_cast<float>(new_number_of_fmin)) + "," + to_string(sbwt.number_of_kmers());
-
-    try {
-        outfile.open(indexfile + "test.txt", std::ios_base::app);
-        if (outfile.is_open()) {
-            outfile << to_string(t) + "," + results + "\n";
-            outfile.close();
-        } else {
-            std::cerr << "Error opening the file for writing." << std::endl;
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-    }
-    // outfile.open(indexfile + "test.txt", std::ios_base::app); // append instead of overwrite
-    // string results = to_string(new_number_of_fmin)+ "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin));
-    // outfile << to_string(t) + "," + results + "\n";
-    // outfile.close();
-    write_log(to_string(t) + "," +results, LogLevel::MAJOR);
-    write_log("#SBWT nodes: " + to_string( n_nodes) , LogLevel::MAJOR);
-    write_log("#Distinct finimizers: " + to_string( new_number_of_fmin) , LogLevel::MAJOR);
-    write_log("Sum of frequencies: " + to_string(sum_freq) , LogLevel::MAJOR);
-    write_log("Avg frequency: " + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
-    write_log("Avg length: " + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
-
-    if(type == "rarest"){
-        // endpoints
-        sdsl::int_vector<> endpoints_v(endpoints.size(), 0, 64-__builtin_clzll(id));
-        for (int64_t x = 0; x < endpoints.size(); x++){
-            endpoints_v[x]=endpoints[x];
-        }
-
-        // global offsets
-        sdsl::int_vector<> unitigs_v(new_number_of_fmin, 0, 64 - __builtin_clzll(id));
-        int64_t j=0;
-        for (int64_t i = 0; i < n_nodes; i++){
-            if (fmin_bv[i] == 1){
-                unitigs_v[j] = unitigs_k[i];
-                cerr << unitigs_v[j]<< endl;
-                j++;
-            }
-        }
-        
-    
-        save_v(indexfile + "O.sdsl", unitigs_v);
-        save_v(indexfile + "E.sdsl", endpoints_v);
-        save_bv(indexfile + "FBV.sdsl", fmin_bv);
-
-        std::ofstream packed_unitigs_out(indexfile + "packed_unitigs.sdsl");
-        sdsl::serialize(unitigs.concat, packed_unitigs_out);
-        
-        std::ofstream unitig_endpoints_out(indexfile + "unitig_endpoints.sdsl");
-        sdsl::serialize(unitigs.ends, unitig_endpoints_out);
-
-        std::ofstream Ustart_out(indexfile + "Ustart.sdsl");
-        sdsl::serialize(Ustart, Ustart_out);
-    }
-    
-    return fmin_bv;
-    */
 }
 
 template<typename sbwt_t, typename reader_t, typename writer_t>
