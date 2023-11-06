@@ -590,55 +590,35 @@ int search_fmin(int argc, char** argv){
     }
     for(string file : output_files) check_writable(file);
 
+    string index_prefix = opts["index-file"].as<string>();
 
-    // sbwt
-    string indexfile = opts["index-file"].as<string>();
-    check_readable(indexfile);
-    throwing_ifstream in(indexfile, ios::binary);
-    vector<string> variants = get_available_variants_fmin();
-    string variant = load_string(in.stream); // read variant type
-    if(std::find(variants.begin(), variants.end(), variant) == variants.end()){
-        cerr << "Error loading index from file: unrecognized variant specified in the file" << endl;
-        return 1;
-    }
-
-    write_log("Loading the index variant " + variant, LogLevel::MAJOR);
     int64_t number_of_queries = 0;
 
-    if (variant == "plain-matrix"){
-        string type = opts["type"].as<string>();
-        if(std::find(types.begin(), types.end(), type) == types.end()){
-            cerr << "Error: unknown type: " << type << endl;
-            cerr << "Available types are:" << all_types_string << endl;
-            return 1;
-        }
+    FinimizerIndex index;
+    index.load(index_prefix);
 
-        FinimizerIndex index;
-        index.load(indexfile);
+    const int64_t k = index.sbwt->get_k();
+    cerr << "k = "<< to_string(k);
+    cerr << " SBWT nodes: "<< to_string(index.sbwt->number_of_subsets())<< " kmers: "<< to_string(index.sbwt->number_of_kmers())<< endl;
 
-        const int64_t k = index.sbwt->get_k();
-        cerr << "k = "<< to_string(k);
-        cerr << " SBWT nodes: "<< to_string(index.sbwt->number_of_subsets())<< " kmers: "<< to_string(index.sbwt->number_of_kmers())<< endl;
-
-        number_of_queries += run_fmin_queries(query_files, output_files, indexfile + ".stats", index, gzip_output);
-        int64_t new_total_micros = cur_time_micros() - micros_start;
-        write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
-        write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
-        
-        std::ofstream statsfile2;
-        statsfile2.open(indexfile + "stats.txt", std::ios_base::app); // append instead of overwrite
-        string results = to_string(number_of_queries);
-        statsfile2 << "," + to_string((double)new_total_micros / number_of_queries);
-        
-        /* TODO Jarno
-        size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v,ef_endpoints, sbwt);
-        write_log("bytes: " + to_string(bytes), LogLevel::MAJOR);
-        statsfile2 <<  "," + to_string(bytes);
-        statsfile2 << "," + to_string(static_cast<float>(bytes*8)/sbwt.number_of_kmers()) + "\n";
-        statsfile2 << "," + to_string(sbwt.number_of_kmers()) + "\n";
-        statsfile2.close();
-        */
-    }
+    number_of_queries += run_fmin_queries(query_files, output_files, index_prefix + ".stats", index, gzip_output);
+    int64_t new_total_micros = cur_time_micros() - micros_start;
+    write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
+    write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
+    
+    std::ofstream statsfile2;
+    statsfile2.open(index_prefix + "stats.txt", std::ios_base::app); // append instead of overwrite
+    string results = to_string(number_of_queries);
+    statsfile2 << "," + to_string((double)new_total_micros / number_of_queries);
+    
+    /* TODO Jarno
+    size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v,ef_endpoints, sbwt);
+    write_log("bytes: " + to_string(bytes), LogLevel::MAJOR);
+    statsfile2 <<  "," + to_string(bytes);
+    statsfile2 << "," + to_string(static_cast<float>(bytes*8)/sbwt.number_of_kmers()) + "\n";
+    statsfile2 << "," + to_string(sbwt.number_of_kmers()) + "\n";
+    statsfile2.close();
+    */
 
     int64_t total_micros = cur_time_micros() - micros_start;
     write_log("us/query end-to-end: " + to_string((double)total_micros / number_of_queries), LogLevel::MAJOR);
