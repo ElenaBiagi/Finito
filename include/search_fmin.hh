@@ -547,11 +547,6 @@ int search_fmin(int argc, char** argv){
         ("z,gzip-output", "Writes output in gzipped form. This can shrink the output files by an order of magnitude.", cxxopts::value<bool>()->default_value("false"))
         ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
         ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string,cxxopts::value<string>()->default_value("rarest"))
-        ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
-        ("f, fmin_bv", "Provide in input the finimizers binary kmers vector.", cxxopts::value<string>()->default_value(""))
-        ("e, endpoints", "Provide in input the endpoints of the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
-        ("g, global-offsets", "Provide in input the global offsets of finimizers in the concatenated unitigs.", cxxopts::value<string>()->default_value(""))
-        ("s, u-start", "Provide in input the bitvector marking the start kmer of each unitig.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage")
     ;
 
