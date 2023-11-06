@@ -128,8 +128,8 @@ public:
     }
 
     // Takes ownership of sbwt and LCS
-    template<typename reader_t, typename writer_t>
-    FinimizerIndexBuilder(unique_ptr<plain_matrix_sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, reader_t& reader, writer_t& writer) {
+    template<typename reader_t>
+    FinimizerIndexBuilder(unique_ptr<plain_matrix_sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, reader_t& reader) {
         index = make_unique<FinimizerIndex>();
         this->sbwt = move(sbwt); // Take ownership
         this->LCS = move(LCS); // Take ownership
@@ -150,7 +150,7 @@ public:
         vector<char> unitig_buf;
         for(int64_t i = 0; i < unitigs.number_of_strings(); i++){
             int64_t len = unitigs.get(i, unitig_buf);
-            set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len, writer);
+            set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len);
             total_len += len; 
             finimizers.insert(new_search.begin(), new_search.end());
         }
@@ -175,8 +175,7 @@ public:
     }
 
     // TODO: 32 bits for global offsets might not be enough
-    template<typename writer_t>
-    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, vector<uint32_t>& global_offsets, const int64_t unitig_start, writer_t& writer) {
+    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, vector<uint32_t>& global_offsets, const int64_t unitig_start) {
         const int64_t n_nodes = sbwt->number_of_subsets();
         const int64_t k = sbwt->get_k();
         const vector<int64_t>& C = sbwt->get_C_array();

@@ -594,8 +594,10 @@ int search_fmin(int argc, char** argv){
 
     int64_t number_of_queries = 0;
 
+    cerr << "Loading index..." << endl;
     FinimizerIndex index;
     index.load(index_prefix);
+    cerr << "Index loaded" << endl;
 
     const int64_t k = index.sbwt->get_k();
     cerr << "k = "<< to_string(k);

@@ -362,8 +362,8 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
     return new_unitigs;
 }
 
-template<typename sbwt_t, typename reader_t, typename writer_t>
-void run_fmin_streaming(reader_t& reader, writer_t& writer, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
+template<typename sbwt_t, typename reader_t>
+void run_fmin_streaming(reader_t& reader, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
 
     if(t != 1){
         throw std::runtime_error("t != 1 not supported currently");
@@ -373,44 +373,34 @@ void run_fmin_streaming(reader_t& reader, writer_t& writer, const string& index_
         throw std::runtime_error("Only rarest is supported currently");
     }
 
-    FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader, writer);
+    FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader);
     unique_ptr<FinimizerIndex> index = builder.get_index();
     index->serialize(index_prefix);
 }
 
-template<typename sbwt_t, typename reader_t, typename writer_t>
-int64_t run_file_fmin(const string& infile, const string& outfile, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+template<typename sbwt_t, typename reader_t>
+int64_t run_file_fmin(const string& infile, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
     reader_t reader(infile);
-    writer_t writer(outfile);
     //Assume sbwt has streaming support
-    write_log("Searching Finimizers from input file " + infile + " to output file " + outfile , LogLevel::MAJOR);
-    run_fmin_streaming<sbwt_t, reader_t, writer_t>(reader, writer, index_prefix, move(sbwt), move(LCS), t, type); // C,k,DNA_bitvectors,
+    write_log("Searching Finimizers from input file " + infile + " to index prefix " + index_prefix, LogLevel::MAJOR);
+    run_fmin_streaming<sbwt_t, reader_t>(reader, index_prefix, move(sbwt), move(LCS), t, type); // C,k,DNA_bitvectors,
     return 0;
 }
 
 template<typename sbwt_t>
-int64_t fmin_search(const vector<string>& infiles, const string& outfile, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t,const string& type, bool gzip_output){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+int64_t fmin_search(const vector<string>& infiles, const string& out_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t,const string& type){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
 
     typedef SeqIO::Reader<Buffered_ifstream<zstr::ifstream>> in_gzip;
     typedef SeqIO::Reader<Buffered_ifstream<std::ifstream>> in_no_gzip;
 
-    typedef Buffered_ofstream<zstr::ofstream> out_gzip;
-    typedef Buffered_ofstream<std::ofstream> out_no_gzip;
-
     int64_t n_fmin = 0;
     for(int64_t i = 0; i < infiles.size(); i++){
         bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
-        if(gzip_input && gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type); // DNA_bitvectors,
+        if(gzip_input){
+            n_fmin += run_file_fmin<sbwt_t, in_gzip>(infiles[i], out_prefix, move(sbwt), move(LCS),t, type); 
         }
-        if(gzip_input && !gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_gzip, out_no_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type);
-        }
-        if(!gzip_input && gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type);
-        }
-        if(!gzip_input && !gzip_output){
-            n_fmin += run_file_fmin<sbwt_t, in_no_gzip, out_no_gzip>(infiles[i], outfile, index_prefix, move(sbwt), move(LCS),t, type);
+        else {
+            n_fmin += run_file_fmin<sbwt_t, in_no_gzip>(infiles[i], out_prefix, move(sbwt), move(LCS),t, type);
         }
     }
 
@@ -431,18 +421,15 @@ int build_fmin(int argc, char** argv) {
     for (string type: types) all_types_string += " " + type;
 
     options.add_options()
-            ("o,out-file", "Output filename.", cxxopts::value<string>())
-            ("i,index-file", "Index input file.This has to be a binary matrix.", cxxopts::value<string>())
-            ("u,in-file",
-             "The SPSS in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
-             cxxopts::value<string>())
-            ("z,gzip-output",
-             "Writes output in gzipped form. This can shrink the output files by an order of magnitude.",
-             cxxopts::value<bool>()->default_value("false"))
-            ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
-            ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
-            ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
-            ("h,help", "Print usage");
+        ("o,out-file", "Output index filename prefix.", cxxopts::value<string>())
+        ("i,index-file", "SBWT file. This has to be a binary matrix.", cxxopts::value<string>())
+        ("u,in-file",
+            "The SPSS in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
+            cxxopts::value<string>())
+        ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
+        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
+        ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
+        ("h,help", "Print usage");
 
     int64_t old_argc = argc; // Must store this because the parser modifies it
     auto opts = options.parse(argc, argv);
@@ -465,11 +452,7 @@ int build_fmin(int argc, char** argv) {
     for(string file : input_files) check_readable(file);
 
 
-    // Interpret output file
-    string outfile = opts["out-file"].as<string>() + to_string(t)+".fa";
-    bool gzip_output = opts["gzip-output"].as<bool>();
-    vector<string> output_files;
-    check_writable(outfile);
+    string out_prefix = opts["out-file"].as<string>();
 
     // sbwt
     string indexfile = opts["index-file"].as<string>();
@@ -511,7 +494,7 @@ int build_fmin(int argc, char** argv) {
         string LCS_file = opts["lcs"].as<string>();
         if (LCS_file.empty()) {
             std::cerr<< "LCS_file empty" << std::endl;
-            LCS_file = indexfile + ".LCS.sdsl";
+            LCS_file = out_prefix + ".LCS.sdsl";
             const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(*sbwt, 8);
             //const sdsl::int_vector<> LCS = lcs_basic_algorithm(*sbwt);
             save_v(LCS_file, LCS);
@@ -519,7 +502,7 @@ int build_fmin(int argc, char** argv) {
         unique_ptr<sdsl::int_vector<>> LCS = make_unique<sdsl::int_vector<>>();
         load_v(LCS_file, *LCS);
         std::cerr<< "LCS_file loaded" << std::endl;
-        fmin_search(input_files, outfile, indexfile, move(sbwt), move(LCS), t, type, gzip_output);//DNA_bitvectors,
+        fmin_search(input_files, out_prefix, move(sbwt), move(LCS), t, type);//DNA_bitvectors,
 
     }
     return 0;
