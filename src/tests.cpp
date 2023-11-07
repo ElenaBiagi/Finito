@@ -13,6 +13,7 @@
 
 string temp_dir = "tests_temp";
 string paper_example_input = ">3\nGTAAGTCT\n>1\nACAGGTA\n>2\nGTAGGAAA\n";
+vector<string> paper_example_unitigs = {"GTAAGTCT", "ACAGGTA", "GTAGGAAA"};
 
 using namespace std;
 using namespace std::filesystem;
@@ -27,17 +28,14 @@ void assert_equal(const T& a, const T& b){
     }
 }
 
-// Returns filename
-string write_paper_example_to_disk(){
-    // Write fasta data to file
-    string fasta_filename = temp_dir + "/" + "paper_example.fasta";
-    ofstream fasta_out(fasta_filename);
+void write_as_fasta(const vector<string>& seqs, const string& filename){
+    ofstream fasta_out(filename);
     fasta_out.write(paper_example_input.c_str(), paper_example_input.size());
-    return fasta_filename;
 }
 
-void test_shortest_unique_construction(){
-    string input_filename = write_paper_example_to_disk();
+unique_ptr<FinimizerIndex> build_example_index(){
+    string input_filename = temp_dir + "/paper_example.fna";
+    write_as_fasta(paper_example_unitigs, input_filename);
 
     unique_ptr<plain_matrix_sbwt_t> sbwt = make_unique<plain_matrix_sbwt_t>();
     int64_t k = 4;
@@ -49,6 +47,12 @@ void test_shortest_unique_construction(){
     SeqIO::Reader<> reader(input_filename);
     FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader);
     unique_ptr<FinimizerIndex> index = builder.get_index();
+    return move(index);
+}
+
+void test_shortest_unique_construction(){
+
+    unique_ptr<FinimizerIndex> index = build_example_index();
 
     // TODO: fill these in
     sdsl::int_vector<> true_LCS = {0,0,1,2,2,1,1,1,0,1,0,2,2,1,3,0,1,2};
@@ -66,6 +70,12 @@ void test_shortest_unique_construction(){
     assert_equal(true_fmin, index->fmin);
     assert_equal(true_global_offsets, index->global_offsets);
     assert_equal(true_Ustart, index->Ustart);
+}
+
+void test_shortest_unique_queries(){
+
+    unique_ptr<FinimizerIndex> index = build_example_index();
+
 }
 
 int main(int argc, char** argv){
