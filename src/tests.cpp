@@ -55,7 +55,6 @@ void test_shortest_unique_construction(){
 
     unique_ptr<FinimizerIndex> index = build_example_index();
 
-    // TODO: fill these in
     sdsl::int_vector<> true_LCS = {0,0,1,2,2,1,1,1,0,1,0,2,2,1,3,0,1,2};
     sdsl::util::bit_compress(true_LCS);
     sdsl::int_vector<2> true_unitig_concat = {2,3,0,0,2,3,1,3, 0,1,0,2,2,3,0, 2,3,0,2,2,0,0,0};
@@ -74,8 +73,20 @@ void test_shortest_unique_construction(){
 }
 
 void test_shortest_unique_queries(){
-    vector<pair<int64_t, int64_t>> true_unique_ptr = {{1,0},{1,1},{1,2},{1,3}, {2,0},{2,1},{2,2},{2,3},{2,4}, {0,0},{0,1},{0,2},{0,3},{0,4}};// {unitig_id , local kmer_start}
+    vector<vector<pair<int64_t, int64_t>>> true_local_offsets = {{{1,0},{1,1},{1,2},{1,3}}, 
+                                                                 {{2,0},{2,1},{2,2},{2,3},{2,4}}, 
+                                                                 {{0,0},{0,1},{0,2},{0,3},{0,4}}};// {unitig_id , local kmer_start}
+    vector<int64_t> true_hit_counts = {4,5,5};
+    
     unique_ptr<FinimizerIndex> index = build_example_index();
+
+    for(int64_t i = 0; i < paper_example_unitigs.size(); i++){
+        const string& S = paper_example_unitigs[i];
+        FinimizerIndex::QueryResult res = index->search(S);
+
+        assert_equal(res.n_found, true_hit_counts[i]);
+        assert_equal(res.local_offsets, true_local_offsets[i]);
+    }
 }
 
 int main(int argc, char** argv){
@@ -84,5 +95,6 @@ int main(int argc, char** argv){
         create_directory(temp_dir);
     }
     test_shortest_unique_construction();
+    test_shortest_unique_queries();
 
 }
