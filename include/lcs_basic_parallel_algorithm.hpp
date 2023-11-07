@@ -1,3 +1,4 @@
+#pragma once
 #include <sdsl/int_vector.hpp>
 #include "sbwt/SBWT.hh"
 #include "sbwt/variants.hh"
