@@ -74,9 +74,8 @@ void test_shortest_unique_construction(){
 }
 
 void test_shortest_unique_queries(){
-
+    vector<pair<int64_t, int64_t>> true_unique_ptr = {{1,0},{1,1},{1,2},{1,3}, {2,0},{2,1},{2,2},{2,3},{2,4}, {0,0},{0,1},{0,2},{0,3},{0,4}};// {unitig_id , local kmer_start}
     unique_ptr<FinimizerIndex> index = build_example_index();
-
 }
 
 int main(int argc, char** argv){
