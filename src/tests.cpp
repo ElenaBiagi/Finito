@@ -12,7 +12,6 @@
 #include "backward.hpp"
 
 string temp_dir = "tests_temp";
-string paper_example_input = ">3\nGTAAGTCT\n>1\nACAGGTA\n>2\nGTAGGAAA\n";
 vector<string> paper_example_unitigs = {"GTAAGTCT", "ACAGGTA", "GTAGGAAA"};
 
 using namespace std;
@@ -30,7 +29,9 @@ void assert_equal(const T& a, const T& b){
 
 void write_as_fasta(const vector<string>& seqs, const string& filename){
     ofstream fasta_out(filename);
-    fasta_out.write(paper_example_input.c_str(), paper_example_input.size());
+    for(const string& S : seqs){
+        fasta_out << ">\n" << S << "\n" << endl;
+    }
 }
 
 unique_ptr<FinimizerIndex> build_example_index(){
@@ -40,7 +41,7 @@ unique_ptr<FinimizerIndex> build_example_index(){
     unique_ptr<plain_matrix_sbwt_t> sbwt = make_unique<plain_matrix_sbwt_t>();
     int64_t k = 4;
     NodeBOSSInMemoryConstructor<plain_matrix_sbwt_t> constructor;
-    constructor.build({paper_example_input}, *sbwt, k, true);
+    constructor.build(paper_example_unitigs, *sbwt, k, true);
 
     unique_ptr<sdsl::int_vector<>> LCS = make_unique<sdsl::int_vector<>>(move(lcs_basic_parallel_algorithm(*sbwt, 3))); // 3 threads
 
