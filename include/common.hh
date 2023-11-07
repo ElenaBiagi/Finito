@@ -36,7 +36,7 @@ pair<int64_t,int64_t> drop_first_char(const int64_t  new_len, const pair<int64_t
     if(I.first == -1) return I;
     pair<int64_t,int64_t> new_I = I;
     //Check top and bottom w the LCS
-    while (LCS[new_I.first] >= new_len ){new_I.first --;}
+    while (new_I.first > 0 && LCS[new_I.first] >= new_len ){new_I.first --;}
     while(new_I.second < (n_nodes - 1) && LCS[new_I.second + 1] >= new_len ){
         new_I.second ++;
     }
@@ -226,4 +226,23 @@ int64_t pick_finimizer(int64_t kmer_end, int64_t k, const vector<optional<int64_
     }
 
     return best_end;
+}
+
+void print_finimizer_stats(const set<tuple<int64_t, int64_t, int64_t>>& finimizers, int64_t n_kmers, int64_t n_nodes, int64_t t){
+    int64_t new_number_of_fmin = finimizers.size();
+    int64_t sum_freq = 0;
+    int64_t sum_len = 0;
+    for (auto x : finimizers){
+        sum_freq += get<1>(x);
+        sum_len += get<0>(x);
+    }
+
+    string results = to_string(new_number_of_fmin) + "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq) / static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len) / static_cast<float>(new_number_of_fmin)) + "," + to_string(n_kmers);
+
+    write_log(to_string(t) + "," + results, LogLevel::MAJOR);
+    write_log("#SBWT nodes: " + to_string(n_nodes) , LogLevel::MAJOR);
+    write_log("#Distinct finimizers: " + to_string(new_number_of_fmin) , LogLevel::MAJOR);
+    write_log("Sum of frequencies: " + to_string(sum_freq) , LogLevel::MAJOR);
+    write_log("Avg frequency: " + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
+    write_log("Avg length: " + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
 }

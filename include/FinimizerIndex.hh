@@ -175,24 +175,6 @@ public:
 
     unique_ptr<FinimizerIndex> index;
 
-    void print_stats(set<tuple<int64_t, int64_t, int64_t>> finimizers, int64_t n_kmers, int64_t n_nodes, int64_t t){
-        int64_t new_number_of_fmin = finimizers.size();
-        int64_t sum_freq = 0;
-        int64_t sum_len = 0;
-        for (auto x : finimizers){
-            sum_freq += get<1>(x);
-            sum_len += get<0>(x);
-        }
-
-        string results = to_string(new_number_of_fmin) + "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq) / static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len) / static_cast<float>(new_number_of_fmin)) + "," + to_string(n_kmers);
-
-        write_log(to_string(t) + "," + results, LogLevel::MAJOR);
-        write_log("#SBWT nodes: " + to_string(n_nodes) , LogLevel::MAJOR);
-        write_log("#Distinct finimizers: " + to_string(new_number_of_fmin) , LogLevel::MAJOR);
-        write_log("Sum of frequencies: " + to_string(sum_freq) , LogLevel::MAJOR);
-        write_log("Avg frequency: " + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
-        write_log("Avg length: " + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
-    }
 
     // Takes ownership of sbwt and LCS
     template<typename reader_t>
@@ -222,12 +204,14 @@ public:
             finimizers.insert(new_search.begin(), new_search.end());
         }
 
-        sdsl::int_vector<> packed_global_offsets(global_offsets.size(), 64 - __builtin_clzll(total_len));
+        sdsl::int_vector<> packed_global_offsets(finimizers.size(), 64 - __builtin_clzll(total_len));
+        
+        int64_t global_offsets_idx = 0;
         for(int64_t i = 0; i < global_offsets.size(); i++){
-            packed_global_offsets[i] = global_offsets[i];
+            if(fmin_bv[i]) packed_global_offsets[global_offsets_idx++] = global_offsets[i];
         }
     
-        print_stats(finimizers, this->sbwt->number_of_kmers(), this->sbwt->number_of_subsets(), 1);
+        print_finimizer_stats(finimizers, this->sbwt->number_of_kmers(), this->sbwt->number_of_subsets(), 1);
 
         index->sbwt = std::move(this->sbwt); // Transfer ownership
         index->LCS = std::move(this->LCS); // Transfer ownership 
