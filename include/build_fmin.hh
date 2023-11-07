@@ -232,7 +232,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
             while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
-                    w_fmin={n_nodes,k+1,kmer+1,str_len};
+                    w_fmin={n_nodes,k+1,n_nodes,n_nodes+k};//k+1,kmer+1,str_len}; // {freq, len, I start, start} 
                 }
                 else{ 
                     w_fmin = *all_fmin.begin();
@@ -328,7 +328,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
             while (get<3>(w_fmin)- get<0>(w_fmin)+1 < kmer) { // start
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
-                    w_fmin={k+1,n_nodes,n_nodes,n_nodes};//str_len+1}; // {len, freq, I start, end}
+                    w_fmin={k+1,n_nodes,n_nodes,n_nodes+k};//str_len+1}; // {len, freq, I start, end}
                 }
                 else{ 
                     w_fmin = *all_fmin.begin();
