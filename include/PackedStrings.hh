@@ -92,7 +92,7 @@ class PackedStrings{
         assert(global_offset >= 0 && global_offset < concat.size());
 
         // Binary search the smallest index in ends that is larger or equal to the global offset
-        int64_t ends_idx = std::lower_bound(ends.begin(), ends.end(), global_offset - 1) - ends.begin();
+        int64_t ends_idx = std::lower_bound(ends.begin(), ends.end(), global_offset) - ends.begin();
         int64_t global_start = (ends_idx == 0 ? 0 : ends[ends_idx-1]);
 
         return {ends_idx, global_offset - global_start};
