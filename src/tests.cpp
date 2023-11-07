@@ -51,12 +51,14 @@ void test_shortest_unique_construction(){
     unique_ptr<FinimizerIndex> index = builder.get_index();
 
     // TODO: fill these in
-    sdsl::int_vector<> true_LCS;
-    sdsl::int_vector<2> true_unitig_concat;
-    sdsl::int_vector<> true_unitig_ends;
-    sdsl::bit_vector true_fmin;
-    sdsl::int_vector<> true_global_offsets;
-    sdsl::bit_vector true_Ustart;
+    sdsl::int_vector<> true_LCS = {0,0,1,2,2,1,1,1,0,1,0,2,2,1,3,0,1,2};
+    sdsl::util::bit_compress(true_LCS);
+    sdsl::int_vector<2> true_unitig_concat = {2,3,0,0,2,3,1,3, 0,1,0,2,2,3,0, 2,3,0,2,2,0,0,0};
+    sdsl::int_vector<> true_unitig_ends = {8,15,23};
+    sdsl::bit_vector true_fmin = {0,0,0,0,0,1,1,1,0,1,1,0,0,0,0,0,0,1}; // B
+    sdsl::int_vector<> true_global_offsets = {10,20,14,6,4,13};
+    sdsl::util::bit_compress(true_global_offsets);
+    sdsl::bit_vector true_Ustart =  {0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0};
 
     assert_equal(true_LCS, *index->LCS);
     assert_equal(true_unitig_concat, index->unitigs.concat);
@@ -64,7 +66,6 @@ void test_shortest_unique_construction(){
     assert_equal(true_fmin, index->fmin);
     assert_equal(true_global_offsets, index->global_offsets);
     assert_equal(true_Ustart, index->Ustart);
-
 }
 
 int main(int argc, char** argv){
