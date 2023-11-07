@@ -12,7 +12,7 @@
 #include "backward.hpp"
 
 string temp_dir = "tests_temp";
-vector<string> paper_example_unitigs = {"GTAAGTCT", "ACAGGTA", "GTAGGAAA"};
+vector<string> paper_example_unitigs = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT"};
 
 using namespace std;
 using namespace std::filesystem;
