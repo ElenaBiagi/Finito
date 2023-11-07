@@ -156,6 +156,7 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plai
             }
         }
         count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin)});// (length,freq,colex)
+        //cerr << input.substr(i, k) << endl << input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1, get<0>(w_fmin)) << endl;
         //write_fasta({input.substr(i, k)+ ' ' + to_string(get<1>(w_fmin)), input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1, get<0>(w_fmin))}, writer);
     }
     return count_all_w_fmin;
@@ -214,19 +215,18 @@ set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::
             }
         }
         if (end >= k -1 ){
-            count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
-            fmin_bv[get<2>(w_fmin)]=1;
-            if (!fmin_found[get<2>(w_fmin)]){ // if the kmer never been found before
+            if (!fmin_found[get<2>(w_fmin)]){ // if the finimizer has never been found before in a full kmer
+                count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
                 fmin_bv[get<2>(w_fmin)]=1;
                 if ((id + get<3>(w_fmin))> ULLONG_MAX){
                     std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
                 }
                 unitigs_k[get<2>(w_fmin)]= id + get<3>(w_fmin);
+                if (get<3>(w_fmin) >= k-1){
+                    fmin_found[get<2>(w_fmin)] = 1;
+                }
             }
-            if (get<3>(w_fmin) >= k-1){
-                fmin_found[get<2>(w_fmin)] = 1;
-            }
-            //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
+            write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
             while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
@@ -268,7 +268,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const p
     
 }
 
-set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t){ //const sdsl::bit_vector** DNA_bitvectors,
+set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, sdsl::bit_vector& fmin_found){ //const sdsl::bit_vector** DNA_bitvectors,
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -314,15 +314,21 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                 all_fmin.insert(curr_substr);
             }
         }
-        if (end > k){
-            count_all_w_fmin.insert({get<0>(w_fmin),get<1>(w_fmin), get<2>(w_fmin) });// (length,freq,colex)
-            //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<1>(w_fmin)),input.substr(get<3>(w_fmin),get<0>(w_fmin))},writer);
+        if (end >= k -1 ){
+            if (!fmin_found[get<2>(w_fmin)]){ // if the kmer never been found before
+                count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin) });// (length,freq,colex)
+                if (get<3>(w_fmin) >= k-1){
+                    fmin_found[get<2>(w_fmin)] = 1;
+                }
+            }
+            //cerr << input.substr(kmer,k) << endl << input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1,get<0>(w_fmin)) << endl;
+            //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
-            while (get<3>(w_fmin) < kmer) {
+            while (get<3>(w_fmin)- get<0>(w_fmin)+1 < kmer) { // start
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
-                    w_fmin={k+1,n_nodes,kmer+1,str_len};//place holder, will never be selected
+                    w_fmin={k+1,n_nodes,n_nodes,n_nodes};//str_len+1}; // {len, freq, I start, end}
                 }
                 else{ 
                     w_fmin = *all_fmin.begin();
@@ -336,10 +342,12 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
 template<typename reader_t>
 void print_shortest_finimizer_stats(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, reader_t& reader, int64_t t){
     set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    sdsl::bit_vector fmin_found(n_nodes,0);
     while(true){
         int64_t len = reader.get_next_read_to_buffer();
         if(len == 0) [[unlikely]] break;
-        set<tuple<int64_t,int64_t, int64_t>> w_fmin = build_shortest_streaming_search(sbwt, LCS, reader.read_buf, t);
+        set<tuple<int64_t,int64_t, int64_t>> w_fmin = build_shortest_streaming_search(sbwt, LCS, reader.read_buf, t, fmin_found);
         count_all_w_fmin.insert(w_fmin.begin(), w_fmin.end());
     }
     print_finimizer_stats(count_all_w_fmin, sbwt.number_of_kmers(), sbwt.number_of_subsets(), t);
