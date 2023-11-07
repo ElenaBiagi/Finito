@@ -23,10 +23,24 @@
 
 class FinimizerIndex{
 
+public:
+
+    struct QueryResult{
+        vector<pair<int64_t, int64_t>> local_offsets; // Unitig id, distance from the start of the unitig
+        int64_t n_found = 0;
+    };
+
 private:
     // Forbid copying because we have pointers to our internal data structures
     FinimizerIndex(const FinimizerIndex& other) = delete;
     FinimizerIndex& operator=(const FinimizerIndex& other) = delete;
+
+    void add_to_query_result(int64_t global_kmer_end, QueryResult& answer) const{
+        int64_t global_kmer_start = global_kmer_end - sbwt->get_k() + 1;
+        pair<int64_t, int64_t> local_start = unitigs.global_offset_to_local_offset(global_kmer_start);
+        answer.local_offsets.push_back(local_start);
+        answer.n_found++;
+    }
 
 public:
     unique_ptr<plain_matrix_sbwt_t> sbwt; // These are smart pointers because they are passed in to the constructor
@@ -40,7 +54,7 @@ public:
 
     FinimizerIndex() {}
 
-    pair<vector<int64_t>, int64_t> search(const std::string& query, vector<int64_t>& found_kmers) const {
+    QueryResult search(const std::string& query) const {
         // For each k-mer S that is known to be in the SBWT
         //   - Find the finimizer x.
         //   - Walk forward in the SBWT from the colex rank of x (singleton interval), to the end of S,
@@ -56,7 +70,9 @@ public:
         const int64_t k = sbwt.get_k();
         const vector<int64_t>& C = sbwt.get_C_array();
 
-        if(query.size() < k) return {found_kmers, 0};
+        QueryResult answer{{}, 0};
+
+        if(query.size() < k) answer; 
 
         // For each position of the input, the SBWT colex rank of the k-mer that ends there, if exists.
         // A k-mer does not exist if the ending position is too close to the start of the input, or the SBWT does
@@ -85,24 +101,22 @@ public:
 
                     // Get the global off set of the end of the k-mer
                     int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
-                    global_kmer_end += kmer_end - p;
-                    found_kmers[kmer_end - (k-1)] = global_kmer_end;
+                    global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
+                    add_to_query_result(global_kmer_end, answer);
                 } else {
                     // Look up from Finimizer dictionary
                     int64_t p = finimizer_end;
                     int64_t colex = shortest_unique_colex_ranks[p].value();
                     int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
-                    global_kmer_end += kmer_end - p;
-                    found_kmers[kmer_end - (k-1)] = global_kmer_end;
+                    global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
+                    add_to_query_result(global_kmer_end, answer);
                 }
-            }        
+            } else {
+                answer.local_offsets.push_back({-1, -1});
+            } 
         }
 
-        //for(auto x : kmer_colex_ranks) cout << (x.has_value() ? to_string(x.value()) : "-") << " "; cout << endl;
-        int64_t n_found = 0;
-        for(optional<int64_t> x : kmer_colex_ranks) n_found += x.has_value();
-
-        return {found_kmers, n_found};
+        return answer;
     }
 
     void serialize(const string& index_prefix) const {

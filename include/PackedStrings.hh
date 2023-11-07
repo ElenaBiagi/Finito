@@ -26,7 +26,7 @@ using namespace sbwt;
 class PackedStrings{
     public:
     sdsl::int_vector<2> concat;
-    sdsl::int_vector<> ends;
+    sdsl::int_vector<> ends; // Exclusive ends
 
     static constexpr char ACGT[] = "ACGT";
 
@@ -85,6 +85,18 @@ class PackedStrings{
 
     int64_t number_of_strings() const{
         return ends.size();
+    }
+
+    // Returns pair (unitig_id, offset_in_unitig)
+    pair<int64_t, int64_t> global_offset_to_local_offset(int64_t global_offset) const{
+        assert(global_offset >= 0 && global_offset < concat.size());
+
+        // Binary search the smallest index in ends that is larger or equal to the global offset
+        int64_t ends_idx = std::lower_bound(ends.begin(), ends.end(), global_offset - 1) - ends.begin();
+        int64_t global_start = (ends_idx == 0 ? 0 : ends[ends_idx-1]);
+
+        return {ends_idx, global_offset - global_start};
+
     }
 };
 

@@ -387,16 +387,16 @@ int64_t run_fmin_queries_streaming(reader_t& reader, const FinimizerIndex& index
         int64_t len = reader.get_next_read_to_buffer();
         if(len == 0) break;
         int64_t t0 = cur_time_micros();
-        vector<int64_t> found_kmers(len - k + 1,-1);
         //pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, global_offsets, ef_endpoints, Ustart_rs, found_kmers);
-        auto final_pair = index.search(reader.read_buf, found_kmers);
+        FinimizerIndex::QueryResult result = index.search(reader.read_buf);
 
-        for(int64_t x : final_pair.first) cout << x << " "; cout << endl;
+        for(pair<int64_t, int64_t> p : result.local_offsets){
+            cout << "(" << p.first << "," << p.second << ") ";
+        }
+        cout << endl;
 
-        out_buffer = final_pair.first;
-        count = final_pair.second;
-        number_of_queries += out_buffer.size();
-        kmers_count += count;
+        number_of_queries += result.local_offsets.size();
+        kmers_count += result.n_found;
      
         total_micros += cur_time_micros() - t0;
     }
