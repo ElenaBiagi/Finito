@@ -77,7 +77,7 @@ public:
         // For each position of the input, the SBWT colex rank of the k-mer that ends there, if exists.
         // A k-mer does not exist if the ending position is too close to the start of the input, or the SBWT does
         // not contain that k-mer.
-        vector<optional<int64_t>> kmer_colex_ranks = get_kmer_colex_ranks(sbwt, query);
+        vector<optional<int64_t>> kmer_colex_ranks = get_kmer_colex_ranks(sbwt, *LCS, query);
 
         // For each position of the input, the length of the shortest unique substring that ends there, if exists
         // Unique substrings may not exist near the start of the input.
@@ -98,7 +98,7 @@ public:
                     // Look up from the branch dictionary
                     int64_t p = rightmost_branch_end.value().first;
                     int64_t colex = rightmost_branch_end.value().second; 
-
+                    cout << query.substr(kmer_end-k+1,k) << " Branch has a value " << p <<","<<colex;
                     // Get the global off set of the end of the k-mer
                     int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
@@ -308,7 +308,7 @@ public:
                 while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
                     all_fmin.erase(all_fmin.begin());
                     if (all_fmin.empty()){
-                        w_fmin={n_nodes,k+1,kmer+1,str_len};
+                        w_fmin={n_nodes,k+1,kmer+1,kmer+k};
                     }
                     else{ 
                         w_fmin = *all_fmin.begin();
