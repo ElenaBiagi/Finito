@@ -13,6 +13,7 @@
 
 string temp_dir = "tests_temp";
 vector<string> paper_example_unitigs = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT"};
+vector<string> paper_example_queries = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT", "TAGGATTTTTTAAGTCTA"};
 
 using namespace std;
 using namespace std::filesystem;
@@ -76,14 +77,19 @@ void test_shortest_unique_construction(){
 void test_shortest_unique_queries(){
     vector<vector<pair<int64_t, int64_t>>> true_local_offsets = {{{1,0},{1,1},{1,2},{1,3}}, 
                                                                  {{2,0},{2,1},{2,2},{2,3},{2,4}}, 
-                                                                 {{0,0},{0,1},{0,2},{0,3},{0,4}}};// {unitig_id , local kmer_start}
-    vector<int64_t> true_hit_counts = {4,5,5};
+                                                                 {{0,0},{0,1},{0,2},{0,3},{0,4}},
+                                                                 {{2,1}, {2,2}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {0,1}, {0,2}, {0,3}, {0,4}, {-1,-1}}};// {unitig_id , local kmer_start}
+    // vector<string> paper_example_queries = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT", "TAGGATTTTTTAAGTCTA"};
+
+    // TAGGATTTTTTAAGTCTA
+    vector<int64_t> true_hit_counts = {4,5,5,6};
     
     unique_ptr<FinimizerIndex> index = build_example_index();
 
-    for(int64_t i = 0; i < paper_example_unitigs.size(); i++){
-        const string& S = paper_example_unitigs[i];
+    for(int64_t i = 0; i < paper_example_queries.size(); i++){
+        const string& S = paper_example_queries[i];
         FinimizerIndex::QueryResult res = index->search(S);
+        for(auto x : res.local_offsets) cout << x << " "; cout << endl;
 
         assert_equal(res.n_found, true_hit_counts[i]);
         assert_equal(res.local_offsets, true_local_offsets[i]);
