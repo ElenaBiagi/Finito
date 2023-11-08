@@ -393,7 +393,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, const FinimizerIndex& index
         for(pair<int64_t, int64_t> p : result.local_offsets){
             cout << "(" << p.first << "," << p.second << ") ";
         }
-        cout << endl;
+        cout << "\n";
 
         number_of_queries += result.local_offsets.size();
         kmers_count += result.n_found;
