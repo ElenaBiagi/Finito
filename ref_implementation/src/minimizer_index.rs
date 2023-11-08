@@ -1,8 +1,11 @@
+use std::io::{Write, Read};
+
 use rayon::prelude::*;
 use jseqio::seq_db::SeqDB;
+use std::sync::Arc;
 
-pub struct MinimizerIndex<'a>{
-    seq_storage: &'a jseqio::seq_db::SeqDB,
+pub struct MinimizerIndex{
+    seq_storage: Arc<jseqio::seq_db::SeqDB>,
     mphf: boomphf::Mphf<Kmer>, // Minimal perfect hash function
     locations: Vec<(u32, u32)>,
     bucket_starts: Vec<usize>,
@@ -110,7 +113,95 @@ impl Kmer{
     }
 }
 
-impl<'a> MinimizerIndex<'a>{
+impl MinimizerIndex{
+
+    pub fn serialize<W: std::io::Write>(&self, out: W){
+        let mut writer = std::io::BufWriter::new(out);
+        writer.write_all(&self.k.to_le_bytes()).unwrap();
+        writer.write_all(&self.m.to_le_bytes()).unwrap();
+        writer.write_all(&self.n_mmers.to_le_bytes()).unwrap();
+
+        // Locations
+        writer.write_all(&self.locations.len().to_le_bytes()).unwrap();
+        for (x,y) in self.locations.iter(){
+            writer.write_all(&x.to_le_bytes()).unwrap();
+            writer.write_all(&y.to_le_bytes()).unwrap();
+        }
+
+        // Bucket starts
+        writer.write_all(&self.bucket_starts.len().to_le_bytes()).unwrap();
+        for x in self.bucket_starts.iter(){
+            writer.write_all(&x.to_le_bytes()).unwrap();
+        }
+
+        // Mphf
+        bincode::serialize_into(&mut writer, &self.mphf).unwrap();
+
+        // Serialize the sequence database in FASTA
+        let mut seq_writer = jseqio::writer::FastXWriter::new(&mut writer, jseqio::FileType::FASTA);
+        for rec in self.seq_storage.iter(){
+            seq_writer.write(&rec).unwrap();
+        }
+    }
+
+    fn new_from_serialized<R: std::io::Read>(mut input: R) -> Self{
+        let mut locations: Vec<(u32, u32)> = vec![];
+        let mut bucket_starts: Vec<usize> = vec![];
+
+        let mut reader = std::io::BufReader::new(input);
+        let mut buf8 = [0u8; 8]; // 8 bytes
+        let mut buf4= [0u8; 4]; // 4 bytes
+
+        // Read constants
+        reader.read_exact(&mut buf8).unwrap();
+        let k = usize::from_le_bytes(buf8);
+        reader.read_exact(&mut buf8).unwrap();
+        let m = usize::from_le_bytes(buf8);
+        reader.read_exact(&mut buf8).unwrap();
+        let n_mmers = usize::from_le_bytes(buf8);
+
+        // Read locations
+        reader.read_exact(&mut buf8).unwrap();
+        let n_locations = usize::from_le_bytes(buf8);
+        locations.resize(n_locations, (0,0));
+        for i in 0 .. n_locations{
+            reader.read_exact(&mut buf4).unwrap();
+            let x = u32::from_le_bytes(buf4);
+            reader.read_exact(&mut buf4).unwrap();
+            let y = u32::from_le_bytes(buf4);
+            locations[i] = (x,y);
+        }
+
+        // Read bucket starts
+        reader.read_exact(&mut buf8).unwrap();
+        let n_buckets = usize::from_le_bytes(buf8);
+        bucket_starts.resize(n_buckets, 0);
+        for i in 0 .. n_buckets{
+            reader.read_exact(&mut buf8).unwrap();
+            let x = usize::from_le_bytes(buf8);
+            bucket_starts[i] = x;
+        }
+
+        // Mphf
+        let mphf: boomphf::Mphf<Kmer> = bincode::deserialize_from(&mut reader).unwrap();
+
+        // Read sequence storage
+        let fasta_reader = jseqio::reader::StaticFastXReader::new(&mut reader).unwrap();
+        let seq_storage = Arc::new(fasta_reader.into_db().unwrap());
+
+        Self{seq_storage, mphf, locations, bucket_starts, k, m, n_mmers}
+
+    }
+    
+    /*
+       seq_storage: &'a jseqio::seq_db::SeqDB,
+    mphf: boomphf::Mphf<Kmer>, // Minimal perfect hash function
+    locations: Vec<(u32, u32)>,
+    bucket_starts: Vec<usize>,
+    k: usize, // k-mer length
+    m: usize, // Minimizer length
+    n_mmers: usize, // Number of distinct m-mers stored in the mphf 
+     */
 
     // Returns all occurrences of the query k-mer
     pub fn lookup_kmer(&self, kmer: &[u8]) -> Vec<(usize, usize)>{
@@ -164,7 +255,7 @@ impl<'a> MinimizerIndex<'a>{
         return align_starts.iter().map(|&(i,j)| (i,j)).collect();
     }
 
-    pub fn new(db: &'a SeqDB, k: usize, m: usize) -> Self{
+    pub fn new(db: Arc<SeqDB>, k: usize, m: usize) -> Self{
         build::build(db, k, m)
     }
 
@@ -288,10 +379,10 @@ mod build{
     }
 
 
-    pub fn build(db: &SeqDB, k: usize, m: usize) -> MinimizerIndex{
+    pub fn build(db: Arc<SeqDB>, k: usize, m: usize) -> MinimizerIndex{
 
         log::info!("Extracting minimizers");
-        let mut position_list = build_position_list(db, k, m);
+        let mut position_list = build_position_list(db.as_ref(), k, m);
 
         log::info!("Sorting tuples (minimizer, seq_id, seq_pos)");
         position_list.par_sort_unstable();
@@ -324,6 +415,8 @@ mod build{
 
 #[cfg(test)]
 mod tests{
+
+    use std::io::Cursor;
 
     use super::*;
     use jseqio::record::*;
@@ -364,10 +457,10 @@ mod tests{
         true_kmer_occurrences
     }
 
-    fn test_vs_hash_table(db: &SeqDB, k: usize, m: usize){
+    fn test_vs_hash_table(db: Arc<SeqDB>, k: usize, m: usize){
         
         // Build index
-        let index = MinimizerIndex::new(db, k, m);
+        let index = MinimizerIndex::new(db.clone(), k, m);
         
         // Read sequences
         let seqs = db.iter().map(|rec| rec.seq.to_owned()).collect::<Vec<Vec<u8>>>();
@@ -394,13 +487,14 @@ mod tests{
         db.push_record(RefRecord{head: b"seq1", seq: b"ATAGCTAGTCGATGCTGATCGTAGGTTCGTAGCTGTATGCTGACCCTGATGTCTGTAGTCGTGACTGACT", qual: None});
         db.push_record(RefRecord{head: b"seq2 (substring of seq1)", seq: b"GTCGATGCTGATCGTAGGTTCGTAGCTGTATGCTGACCCTGATGTCTTGACT", qual: None});
         db.push_record(RefRecord{head: b"seq3 (seq2 with a single change in the middle)", seq: b"GTCGATGCTGATCGTAGGTTCGAAGCTGTATGCTGACCCTGATGTCTTGACT", qual: None});
+        let db = Arc::new(db);
 
-        test_vs_hash_table(&db, 31, 10);
-        test_vs_hash_table(&db, 10, 10);
-        test_vs_hash_table(&db, 1, 1);
+        test_vs_hash_table(db.clone(), 31, 10);
+        test_vs_hash_table(db.clone(), 10, 10);
+        test_vs_hash_table(db.clone(), 1, 1);
 
         // Look up a random k-mer (should not be found)
-        let index = MinimizerIndex::new(&db, 31, 10);
+        let index = MinimizerIndex::new(db, 31, 10);
         let random_kmer = "ATCTTATCTGGGGCTATTGCTAGGGCTTACA".as_bytes();
         assert_eq!(index.lookup_kmer(random_kmer).len(), 0);
     }
@@ -429,6 +523,8 @@ mod tests{
             }
             db.push_record(RefRecord{head: format!("seq{}", i).as_bytes(), seq: &seq, qual: None});
         }
+
+        let db = Arc::new(db);
 
         let seqs = db.iter().map(|rec| rec.seq.to_owned()).collect::<Vec<Vec<u8>>>();
 
@@ -468,7 +564,8 @@ mod tests{
             }
         }
 
-        let index = MinimizerIndex::new(&db, k, m);
+        let index = MinimizerIndex::new(db, k, m);
+        let index = serialize_and_load(index); // Test serialize and load while we are at it
 
         // Verify
         for query in queries {
@@ -477,6 +574,15 @@ mod tests{
             assert_eq!(occs, true_occurrences[&query]);
         }
         
+    }
+
+    fn serialize_and_load(index: MinimizerIndex) -> MinimizerIndex{
+        // Serialize and load
+        let mut buf = Vec::<u8>::new();
+        index.serialize(&mut buf);
+
+        let cursor = Cursor::new(buf);
+        MinimizerIndex::new_from_serialized(cursor)
     }
 
     // TODO: test handling Ns

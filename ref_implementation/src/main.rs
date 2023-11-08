@@ -144,9 +144,10 @@ fn main() {
     log::info!("k = {}, m = {}", k, m);
 
     let unitig_db = DynamicFastXReader::from_file(&unitigs_path).unwrap().into_db().unwrap(); 
-    let index = minimizer_index::MinimizerIndex::new(&unitig_db, k, m);
+    let unitig_db = std::sync::Arc::new(unitig_db);
+    let index = minimizer_index::MinimizerIndex::new(unitig_db.clone(), k, m);
 
-    let map_to_global = MapToGlobalOffset::new(&unitig_db, k);
+    let map_to_global = MapToGlobalOffset::new(unitig_db.as_ref(), k);
 
     let mut query_reader = DynamicFastXReader::from_file(&query_path).unwrap();
     while let Some(query) = query_reader.read_next().unwrap(){
