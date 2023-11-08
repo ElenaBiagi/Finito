@@ -390,10 +390,13 @@ int64_t run_fmin_queries_streaming(reader_t& reader, const FinimizerIndex& index
         //pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, global_offsets, ef_endpoints, Ustart_rs, found_kmers);
         FinimizerIndex::QueryResult result = index.search(reader.read_buf);
 
-        for(pair<int64_t, int64_t> p : result.local_offsets){
-            cout << "(" << p.first << "," << p.second << ") ";
+        for(int64_t i = 0; i < result.local_offsets.size(); i++){
+            int64_t unitig, pos;
+            std::tie(unitig,pos) = result.local_offsets[i];
+            if(i > 0) cout << ' ';
+            cout << '(' << unitig << ',' << pos << ')';
         }
-        cout << "\n";
+        cout << '\n';
 
         number_of_queries += result.local_offsets.size();
         kmers_count += result.n_found;
