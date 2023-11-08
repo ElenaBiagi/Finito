@@ -166,7 +166,7 @@ fn main() {
             }
         } 
         // Build the output line
-        let out_line = answers.iter().map(|x| format!("({},{})",x.0, x.1)).collect::<Vec<String>>().join(",");
+        let out_line = answers.iter().map(|x| format!("({},{})",x.0, x.1)).collect::<Vec<String>>().join(" ");
         println!("{}", out_line);
     }
 
