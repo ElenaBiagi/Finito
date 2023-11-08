@@ -76,6 +76,8 @@ optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& que
     int64_t colex = finimizer_end_colex[finimizer_end].value();
     optional<pair<int64_t, int64_t>> best = nullopt;
     for(int64_t p = finimizer_end; p < kmer_end; p++){
+        // We're not checking the last position because that branch would be
+        // after the k-mer end.
         if(is_branching(sbwt, colex)){
             colex = sbwt.forward(colex, query[p+1]);
             best = {p+1, colex};
@@ -161,6 +163,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
             while(I_new.first == -1){
                 shortest_unique_lengths[end]= optional<int64_t>{};
                 shortest_unique_colex_ranks[end]= optional<int64_t>{};
+                start++;
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
                 I_new = sbwt.update_sbwt_interval(&c, 1, I);
             }
