@@ -75,7 +75,7 @@ optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& que
 
     int64_t colex = finimizer_end_colex[finimizer_end].value();
     optional<pair<int64_t, int64_t>> best = nullopt;
-    for(int64_t p = finimizer_end; p < kmer_end - 1; p++){
+    for(int64_t p = finimizer_end; p < kmer_end; p++){
         if(is_branching(sbwt, colex)){
             colex = sbwt.forward(colex, query[p+1]);
             best = {p+1, colex};

@@ -70,6 +70,7 @@ void test_shortest_unique_construction(){
     assert_equal(true_fmin, index->fmin);
     assert_equal(true_global_offsets, index->global_offsets);
     assert_equal(true_Ustart, index->Ustart);
+
 }
 
 void test_shortest_unique_queries(){
@@ -94,7 +95,14 @@ int main(int argc, char** argv){
     if (!exists(temp_dir)){
         create_directory(temp_dir);
     }
+
+    cerr << "Testing shortest unique construction..." << endl;
     test_shortest_unique_construction();
+    cerr << "...ok" << endl;
+    cerr << "Testing shortest unique queries..." << endl;
     test_shortest_unique_queries();
+    cerr << "...ok" << endl;
+
+    cerr << "ALL TESTS PASSED" << endl;
 
 }
