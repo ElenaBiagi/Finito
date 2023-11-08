@@ -112,9 +112,50 @@ int64_t lookup_from_finimizer_dictionary(int64_t finimizer_colex, const sdsl::ra
     return global_offsets[finimizer_id];
 }
 
-vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, const string& query){
-    vector<int64_t> colex_ranks = sbwt.streaming_search(query);
+vector<int64_t> kmer_LCS_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){
+    const uint64_t n_nodes = sbwt.number_of_subsets();
+    const uint64_t k = sbwt.get_k();
+    const uint64_t str_len = input.size();
+    vector<int64_t> colex(str_len -k +1, -1);
+    uint64_t start = 0;
+    uint64_t end;
+    pair<int64_t, int64_t> I = {0, n_nodes - 1};
+    pair<int64_t, int64_t> I_new;
+
+    for (end = 0; end < str_len; end++) {
+        char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+        int64_t char_idx = get_char_idx(c);
+        if (char_idx == -1) [[unlikely]]{
+            cerr << "Error: unknown character: " << c << endl;
+            cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
+            return {};
+        } else {
+            I_new = sbwt.update_sbwt_interval(&c, 1, I);
+            // (1) kmer (or subseq) NOT found
+            // We already know that no kmer will be found thus we update start
+            while(I_new.first == -1){
+                start++;
+                I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
+                I_new = sbwt.update_sbwt_interval(&c, 1, I);
+            }
+            I = I_new;
+        
+            // Check if the kmer is found
+            if (end - start + 1 == k){
+                colex[start]= I.first;
+                start++;
+                I = drop_first_char(end - start + 1, I, LCS, n_nodes);
+            }   
+        }
+    }
+    return colex;
+}
+
+vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
+    //vector<int64_t> colex_ranks = sbwt.streaming_search(query);
+    vector<int64_t> colex_ranks = kmer_LCS_streaming_search(sbwt, LCS, query);
     vector<optional<int64_t>> answers;
+
     for(int64_t i = 0; i < sbwt.get_k()-1; i++) // First k-1 are always null because the k-mer is not full
         answers.push_back(optional<int64_t>());
 
