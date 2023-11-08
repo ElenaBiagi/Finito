@@ -79,6 +79,12 @@ impl MapToGlobalOffset{
             unitig_pos
         }
     }
+
+    fn to_unitig_rank(&self, unitig_id: usize) -> usize{
+        self.unitig_id_to_unitig_rank[unitig_id]
+    }
+        
+
 }
 
 fn main() {
@@ -144,7 +150,7 @@ fn main() {
 
     let mut query_reader = DynamicFastXReader::from_file(&query_path).unwrap();
     while let Some(query) = query_reader.read_next().unwrap(){
-        let mut answers = Vec::<isize>::new(); // End points in unitigs. -1 means does not exist
+        let mut answers = Vec::<(isize, isize)>::new(); // End points in unitigs. -1 means does not exist
         for kmer in query.seq.windows(k){
             let occurrences = index.lookup_kmer(kmer);
             if occurrences.len() > 1{
@@ -152,18 +158,15 @@ fn main() {
                 std::process::exit(1);
             }
             else if occurrences.is_empty(){
-                answers.push(-1);
+                answers.push((-1,-1));
             }
             else { // Single occurrence
-                let (unitig_id, mut unitig_pos) = occurrences.first().unwrap();
-                unitig_pos += k - 1; // Inclusive end in unitig
-                // Translate into a global offset in the concatenation of sorted unitigs
-                unitig_pos = map_to_global.to_global_offset(*unitig_id, unitig_pos);
-                answers.push(unitig_pos as isize);
+                let (unitig_id, unitig_pos) = occurrences.first().unwrap();
+                answers.push((map_to_global.to_unitig_rank(*unitig_id) as isize, *unitig_pos as isize));
             }
         } 
         // Build the output line
-        let out_line = answers.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
+        let out_line = answers.iter().map(|x| format!("({},{})",x.0, x.1)).collect::<Vec<String>>().join(",");
         println!("{}", out_line);
     }
 
