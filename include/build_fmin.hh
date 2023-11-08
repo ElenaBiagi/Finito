@@ -162,112 +162,6 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plai
     return count_all_w_fmin;
 }
 
-template<typename writer_t>
-set<tuple<int64_t,int64_t, int64_t>> build_rarest_streaming_search( const sdsl::rank_support_v5<>** DNA_rs, const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, writer_t& writer, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, vector<uint32_t>& unitigs_k, const int64_t id){ //const sdsl::bit_vector** DNA_bitvectors,
-    const int64_t n_nodes = sbwt.number_of_subsets();
-    const int64_t k = sbwt.get_k();
-    const vector<int64_t>& C = sbwt.get_C_array();
-    int64_t freq;
-    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
-    const int64_t str_len = input.size();
-    tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
-    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
-
-    int64_t kmer = 0;
-    int64_t start = 0;
-    int64_t end;
-    pair<int64_t, int64_t> I = {0, n_nodes - 1};
-    int64_t I_start;
-    tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
-    char c;
-    char char_idx;
-    //string writer = "rarest_";
-    // the idea is to start from the first pos which is i and move until finding something of ok freq
-    // then drop the first char keeping track of which char you are starting from
-    // Start is always < k as start <= end and end <k
-    // if start == end than the frequency higher than t
-    for (end = 0; end < str_len; end++) {
-        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-        char_idx = get_char_idx(c);
-        if (char_idx == -1) [[unlikely]]{
-           std::cerr << "Error: unknown character: " << c << endl;
-           std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
-            return {};
-        } else {
-            //const sdsl::bit_vector& Bit_v = *(DNA_bitvectors[char_idx]);
-            const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
-            //update the sbwt INTERVAL
-            I = update_sbwt_interval(C[char_idx], I, Bit_rs);
-            freq = (I.second - I.first + 1);
-            I_start = I.first;
-            if (freq == 1){ // 1. rarest 
-                while (freq == 1) {  //2. shortest
-                curr_substr = {freq, end - start + 1, I_start, end};
-                // (2) drop the first char
-                // When you drop the first char you are sure to find x_2..m since you found x_1..m before
-                start++;
-                I = drop_first_char(end - start + 1, I, LCS, n_nodes);
-                freq = (I.second - I.first + 1);
-                I_start = I.first;
-                }
-                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
-                all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<int64_t>(I.first)});
-            }
-        }
-        if (end >= k -1 ){
-            if (!fmin_found[get<2>(w_fmin)]){ // if the finimizer has never been found before in a full kmer
-                count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
-                fmin_bv[get<2>(w_fmin)]=1;
-                if ((id + get<3>(w_fmin))> ULLONG_MAX){
-                    std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
-                }
-                unitigs_k[get<2>(w_fmin)]= id + get<3>(w_fmin);
-                if (get<3>(w_fmin) >= k-1){
-                    fmin_found[get<2>(w_fmin)] = 1;
-                }
-            }
-            write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
-            kmer++;
-            // Check if the current minimizer is still in this window
-            while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
-                all_fmin.erase(all_fmin.begin());
-                if (all_fmin.empty()){
-                    w_fmin={n_nodes,k+1,n_nodes,n_nodes+k};//k+1,kmer+1,str_len}; // {freq, len, I start, start} 
-                }
-                else{ 
-                    w_fmin = *all_fmin.begin();
-                }
-            }
-        }
-    }
-    return count_all_w_fmin;
-}
-
-set<tuple<int64_t,int64_t, int64_t>> build_unique_streaming_search_jarno(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors,
-
-    int64_t k = sbwt.get_k();
-
-    // For each position of the input, the length of the shortest unique substring that ends there, if exists
-    // Unique substrings may not exist near the start of the input.
-    vector<optional<int64_t>> shortest_unique_lengths;
-
-    // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
-    vector<optional<int64_t>> shortest_unique_colex_ranks;
-
-    std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(sbwt, LCS, input);
-
-    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin; // len, freq, colex
-    for(int64_t kmer_end = k - 1; kmer_end < input.size(); kmer_end++){
-        int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
-        int64_t len = shortest_unique_lengths[finimizer_end].value();
-        int64_t colex = shortest_unique_colex_ranks[finimizer_end].value();
-        count_all_w_fmin.insert({len, 1, colex});
-    }
-
-    return count_all_w_fmin;
-    
-}
-
 set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const char t, sdsl::bit_vector& fmin_found){ //const sdsl::bit_vector** DNA_bitvectors,
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
@@ -328,7 +222,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
             while (get<3>(w_fmin)- get<0>(w_fmin)+1 < kmer) { // start
                 all_fmin.erase(all_fmin.begin());
                 if (all_fmin.empty()){
-                    w_fmin={k+1,n_nodes,n_nodes,n_nodes+k};//str_len+1}; // {len, freq, I start, end}
+                    w_fmin={k+1,n_nodes,n_nodes,kmer+k};//str_len+1}; // {len, freq, I start, end}
                 }
                 else{ 
                     w_fmin = *all_fmin.begin();
