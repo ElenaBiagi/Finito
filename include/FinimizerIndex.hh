@@ -98,7 +98,6 @@ public:
                     // Look up from the branch dictionary
                     int64_t p = rightmost_branch_end.value().first;
                     int64_t colex = rightmost_branch_end.value().second; 
-                    cout << query.substr(kmer_end-k+1,k) << " Branch has a value " << p <<","<<colex;
                     // Get the global off set of the end of the k-mer
                     int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
