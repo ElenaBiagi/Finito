@@ -115,6 +115,10 @@ impl Kmer{
 
 impl MinimizerIndex{
 
+    pub fn get_k(&self) -> usize{
+        self.k
+    }
+
     pub fn serialize<W: std::io::Write>(&self, out: W){
         let mut writer = std::io::BufWriter::new(out);
         writer.write_all(&self.k.to_le_bytes()).unwrap();
@@ -144,7 +148,7 @@ impl MinimizerIndex{
         }
     }
 
-    fn new_from_serialized<R: std::io::Read>(mut input: R) -> Self{
+    pub fn new_from_serialized<R: std::io::Read>(input: R) -> Self{
         let mut locations: Vec<(u32, u32)> = vec![];
         let mut bucket_starts: Vec<usize> = vec![];
 
