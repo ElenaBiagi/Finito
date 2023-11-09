@@ -61,16 +61,6 @@ fn main() {
     }
 
     env_logger::init();
-/*
-            )
-            .arg(Arg::new("query")
-                .help("Input FASTA or FASTQ file, possibly gzipped")
-                .long("query")
-                .short('q')
-                .required(true)
-                .value_parser(clap::value_parser!(PathBuf))
-            )
- */
 
     let cli = Command::new("kmer-mapper")
         .about("Mapping k-mers to unitigs")
@@ -116,6 +106,20 @@ fn main() {
                 .help("Input FASTA or FASTQ file, possibly gzipped")
                 .long("query")
                 .short('q')
+                .required(true)
+                .value_parser(clap::value_parser!(PathBuf))))
+        .subcommand(Command::new("extract-index-unitigs")
+            .arg_required_else_help(true)
+            .arg(Arg::new("index")
+                .help("Index file")
+                .long("index")
+                .short('i')
+                .required(true)
+                .value_parser(clap::value_parser!(PathBuf))
+            ).arg(Arg::new("outfile")
+                .help("Output fasta file")
+                .long("outfile")
+                .short('o')
                 .required(true)
                 .value_parser(clap::value_parser!(PathBuf))))
     ;
@@ -178,6 +182,15 @@ fn main() {
                 println!("{}", out_line);
             }
             std::process::exit(1);
+        },
+        Some(("extract-index-unitigs", cli_matches)) => {
+            let indexfile: &PathBuf = cli_matches.get_one("index").unwrap();
+            let outfile: &PathBuf = cli_matches.get_one("outfile").unwrap();
+            let index = MinimizerIndex::new_from_serialized(std::fs::File::open(indexfile).unwrap());
+            let mut writer = DynamicFastXWriter::new_to_file(outfile).unwrap();
+            for record in index.get_unitig_db().iter(){
+                writer.write(&record).unwrap();
+            }
         },
         _ => {
             eprintln!("Error: No subcommand given");

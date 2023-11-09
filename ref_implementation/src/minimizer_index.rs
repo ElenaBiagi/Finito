@@ -119,6 +119,14 @@ impl MinimizerIndex{
         self.k
     }
 
+    pub fn get_m(&self) -> usize{
+        self.m
+    }
+
+    pub fn get_unitig_db(&self) -> Arc<SeqDB>{
+        self.seq_storage.clone()
+    }
+
     pub fn serialize<W: std::io::Write>(&self, out: W){
         let mut writer = std::io::BufWriter::new(out);
         writer.write_all(&self.k.to_le_bytes()).unwrap();
