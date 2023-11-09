@@ -512,16 +512,14 @@ int search_fmin(int argc, char** argv){
     // Interpret output file
     optional<vector<string>> output_files;
     try{
-        cout << "A" << endl;
         string outfile = opts["out-file"].as<string>();
-        cout << "B" << endl;
         if(multi_file){
             output_files = readlines(outfile);
         } else{
             output_files = {outfile};
         }
         for(string file : output_files.value()) check_writable(file);
-    } catch(cxxopts::option_not_present_exception& e){
+    } catch(cxxopts::option_has_no_value_exception& e){
         write_log("No output file given, writing to stdout", LogLevel::MAJOR);
     }
 
