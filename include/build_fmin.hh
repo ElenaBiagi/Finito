@@ -403,19 +403,6 @@ int build_fmin(int argc, char** argv) {
             return 1;
         }
 
-        const sdsl::bit_vector& A_bits = sbwt->get_subset_rank_structure().A_bits;
-        const sdsl::bit_vector& C_bits = sbwt->get_subset_rank_structure().C_bits;
-        const sdsl::bit_vector& G_bits = sbwt->get_subset_rank_structure().G_bits;
-        const sdsl::bit_vector& T_bits = sbwt->get_subset_rank_structure().T_bits;
-
-        const sdsl::rank_support_v5<> &A_bits_rs = sbwt->get_subset_rank_structure().A_bits_rs;
-        const sdsl::rank_support_v5<> &C_bits_rs = sbwt->get_subset_rank_structure().C_bits_rs;
-        const sdsl::rank_support_v5<> &G_bits_rs = sbwt->get_subset_rank_structure().G_bits_rs;
-        const sdsl::rank_support_v5<> &T_bits_rs = sbwt->get_subset_rank_structure().T_bits_rs;
-
-        const int64_t n_nodes = sbwt->number_of_subsets();
-        const int64_t k = sbwt->get_k();
-
         string LCS_file = opts["lcs"].as<string>();
         if (LCS_file.empty()) {
             std::cerr<< "LCS_file empty" << std::endl;
