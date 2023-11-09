@@ -180,10 +180,6 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
     int64_t I_start;
     pair<int64_t, int64_t> curr_substr;
 
-    auto is_singleton = [](const pair<int64_t, int64_t>& interval){ // Helper to make code more readable
-        return interval.second == interval.first;
-    };
-
     vector<optional<int64_t>> shortest_unique_lengths(query.size());
     vector<optional<int64_t>> shortest_unique_colex_ranks(query.size());
     
