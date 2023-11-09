@@ -542,14 +542,12 @@ int search_fmin(int argc, char** argv){
     string results = to_string(number_of_queries);
     statsfile2 << "," + to_string((double)new_total_micros / number_of_queries);
     
-    /* TODO Jarno
-    size_t bytes = size_in_bytes(LCS, fmin_bv, fmin_rs, unitigs_v,ef_endpoints, sbwt);
+    int64_t bytes = index.size_in_bytes();
     write_log("bytes: " + to_string(bytes), LogLevel::MAJOR);
     statsfile2 <<  "," + to_string(bytes);
-    statsfile2 << "," + to_string(static_cast<float>(bytes*8)/sbwt.number_of_kmers()) + "\n";
-    statsfile2 << "," + to_string(sbwt.number_of_kmers()) + "\n";
+    statsfile2 << "," + to_string(static_cast<double>(bytes*8)/index.sbwt->number_of_kmers()) + "\n";
+    statsfile2 << "," + to_string(index.sbwt->number_of_kmers()) + "\n";
     statsfile2.close();
-    */
 
     int64_t total_micros = cur_time_micros() - micros_start;
     write_log("us/query end-to-end: " + to_string((double)total_micros / number_of_queries), LogLevel::MAJOR);

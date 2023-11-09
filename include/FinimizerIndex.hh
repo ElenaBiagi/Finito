@@ -43,6 +43,8 @@ private:
     }
 
 public:
+
+    // Note: if you add members, update size_in_bytes(), serialize(), and load()
     unique_ptr<plain_matrix_sbwt_t> sbwt; // These are smart pointers because they are passed in to the constructor
     unique_ptr<sdsl::int_vector<>> LCS; // These are smart pointers because they are passed in to the constructor
     PackedStrings unitigs;
@@ -174,8 +176,21 @@ public:
 
     }
 
-    void size_in_bytes() const{
-        // TODO
+    // This also includes the rank structures which are not serialized
+    int64_t size_in_bytes() const{
+        int64_t total = 0;
+        total += sdsl::size_in_bytes(*LCS);
+        total += sdsl::size_in_bytes(fmin);
+        total += sdsl::size_in_bytes(fmin_rs);
+        total += sdsl::size_in_bytes(global_offsets);
+        total += sdsl::size_in_bytes(unitigs.concat);
+        total += sdsl::size_in_bytes(unitigs.ends);
+        total += sdsl::size_in_bytes(Ustart);
+        total += sdsl::size_in_bytes(Ustart_rs);
+
+        sbwt::SeqIO::NullStream ns;
+        total += sbwt->serialize(ns);
+        return total;
     }
 };
 
