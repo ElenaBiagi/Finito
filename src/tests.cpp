@@ -241,10 +241,10 @@ map<string, int64_t> get_unitig_ranks(const vector<string>& unitigs, int64_t k){
 }
 
 
-void test_reverse_complement_madness(){
+void test_incoming_rc_branch(){
     int64_t k = 10;
-    //vector<string> unitigs = {"ACTCG", sbwt::get_rc("CTCGT"), sbwt::get_rc("CTCGA"), sbwt::get_rc("TCGAA"), "TCGAC"};
-    vector<string> unitigs = {"AACAAAAAAA", sbwt::get_rc("ACAAAAAAAA"), "CAAAAAAAAA", sbwt::get_rc("ACAAAAAAAT"), "CAAAAAAAAT"};
+    vector<string> unitigs = {"AACAAAAAAA",               "ACAAAAAAAA", "CAAAAAAAAA", 
+                 sbwt::get_rc("TACAAAAAAA"), sbwt::get_rc("TCAAAAAAAA")};
 
     unique_ptr<FinimizerIndex> index = build_index(unitigs, k);
 
@@ -254,8 +254,6 @@ void test_reverse_complement_madness(){
     FinimizerIndex::QueryResult ans = index->search(query);
 
     for(string unitig : unitigs) cout << unitig << " " << unitig_ranks[unitig] << endl;
-
-    cout << "true unitig rank " << unitig_ranks[query] << endl;
 
     vector<pair<int64_t, int64_t>> true_local_offsets = {{unitig_ranks[query], 0}};
     assert_equal(true_local_offsets, ans.local_offsets);
@@ -292,8 +290,8 @@ int main(int argc, char** argv){
     test_finimizer_selection();
     cerr << "...ok" << endl;
  
-    cerr << "Testing reverse complemenet madness" << endl;
-    test_reverse_complement_madness();
+    cerr << "Testing incoming rc branch" << endl;
+    test_incoming_rc_branch();
     cerr << "...ok" << endl;
 
     cerr << "ALL TESTS PASSED" << endl;
