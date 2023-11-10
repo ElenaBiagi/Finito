@@ -124,7 +124,7 @@ void test_reverse_complement_branch(){
     //string query = "CCGGT";
     //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
     string query = "TCGGTGCCGTC";
-    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0},{-1,-1},{-1,-1}, {-1,-1}, {0,0}, {0,1}, {0,2}};// TODO check
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0},{-1,-1},{-1,-1}, {-1,-1}, {0,0}, {0,1}, {0,2}};
 
     unique_ptr<FinimizerIndex> index = build_index(unitigs);
     FinimizerIndex::QueryResult res = index->search(query);
