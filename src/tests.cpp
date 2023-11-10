@@ -37,10 +37,9 @@ void write_as_fasta(const vector<string>& seqs, const string& filename){
 }
 
 // Takes in a spectrum-preserving string set
-unique_ptr<FinimizerIndex> build_index(const vector<string>& spss){
+unique_ptr<FinimizerIndex> build_index(const vector<string>& spss, int64_t k){
 
     unique_ptr<plain_matrix_sbwt_t> sbwt = make_unique<plain_matrix_sbwt_t>();
-    int64_t k = 4;
     NodeBOSSInMemoryConstructor<plain_matrix_sbwt_t> constructor;
     constructor.build(spss, *sbwt, k, true);
 
@@ -55,7 +54,7 @@ unique_ptr<FinimizerIndex> build_index(const vector<string>& spss){
 }
 
 unique_ptr<FinimizerIndex> build_example_index(){
-    return build_index(paper_example_unitigs);
+    return build_index(paper_example_unitigs, 4);
 }
 
 void test_shortest_unique_construction(){
@@ -133,7 +132,7 @@ void test_finimizer_branch(){
     sdsl::bit_vector true_Ustart = {0,0,0,0,0,1,0,0,1,1,0,1};
     sdsl::bit_vector true_is_branch =  {0,0,0,0,0,0,0,0,0,1,0,0};
 
-    unique_ptr<FinimizerIndex> index = build_index(unitigs);
+    unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
 
     cout << (int)index->global_offsets.width() << endl;
     cout << (int)true_global_offsets.width() << endl;
@@ -163,7 +162,7 @@ void test_reverse_complement_branch(){
     string query = "TCGGTGCCGTC";
     vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0},{-1,-1},{-1,-1}, {-1,-1}, {0,0}, {0,1}, {0,2}};
 
-    unique_ptr<FinimizerIndex> index = build_index(unitigs);
+    unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
     FinimizerIndex::QueryResult res = index->search(query);
     assert_equal(res.local_offsets.size(), true_local_offsets.size());
     assert_equal(res.local_offsets, true_local_offsets);
@@ -179,7 +178,7 @@ void test_leftmost(){
     string query = "CGGTTACCC";
     vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}, {-1,-1}, {-1,-1}, {0,0}, {0,1}};
 
-    unique_ptr<FinimizerIndex> index = build_index(unitigs);
+    unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
     FinimizerIndex::QueryResult res = index->search(query);
     assert_equal(res.local_offsets.size(), true_local_offsets.size());
     assert_equal(res.local_offsets, true_local_offsets);
@@ -194,7 +193,7 @@ void test_finimizer_selection(){
     string query = "GCCGTA";
     // Permuted order:            1       2        0
 
-    unique_ptr<FinimizerIndex> index = build_index(unitigs);
+    unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
     index->search(query);
 
     sdsl::bit_vector true_fmin = {0,0,1,1,1,0,0,0,0,1,0,0};
@@ -214,6 +213,49 @@ void test_finimizer_selection(){
     10 CCGT
     11 CGGT
     */
+
+}
+
+// Return map: unitig -> rank
+map<string, int64_t> get_unitig_ranks(const vector<string>& unitigs, int64_t k){
+
+    vector<string> vec = unitigs;
+
+    auto unitig_compare = [k](const string& A, const string& B){
+        string Ak = A.substr(0, k);
+        string Bk = B.substr(0, k);
+        string Ak_rev(Ak.rbegin(), Ak.rend());
+        string Bk_rev(Bk.rbegin(), Bk.rend());
+        return Ak_rev < Bk_rev;
+    };
+
+    sort(vec.begin(), vec.end(), unitig_compare);
+
+    map<string, int64_t> M;
+   
+    for(int64_t i = 0; i < unitigs.size(); i++){
+        M[vec[i]] = i;
+    };
+    return M;
+
+}
+
+void test_reverse_complement_madness(){
+    int64_t k = 5;
+    vector<string> unitigs = {"ACTCG", sbwt::get_rc("CTCGT"), sbwt::get_rc("CTCGA"), sbwt::get_rc("TCGAA"), "TCGAT", "ATATA"};
+
+    unique_ptr<FinimizerIndex> index = build_index(unitigs, k);
+
+    map<string, int64_t> unitig_ranks = get_unitig_ranks(unitigs, k);
+
+    string query = "TCGAT";
+    FinimizerIndex::QueryResult ans = index->search(query);
+
+    cout << "true unitig rank " << unitig_ranks["TCGAT"] << endl;
+
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{unitig_ranks["TCGAT"], 0}};
+    assert_equal(true_local_offsets, ans.local_offsets);
+    assert_equal({}, ans.local_offsets);
 
 }
 
@@ -245,6 +287,10 @@ int main(int argc, char** argv){
 
     cerr << "Testing Finimizer selection" << endl;
     test_finimizer_selection();
+    cerr << "...ok" << endl;
+ 
+    cerr << "Testing reverse complemenet madness" << endl;
+    test_reverse_complement_madness();
     cerr << "...ok" << endl;
 
     cerr << "ALL TESTS PASSED" << endl;
