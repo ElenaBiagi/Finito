@@ -96,6 +96,7 @@ public:
                 // kmer exists
 
                 int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
+                cout << "Finimizer ends at: " << finimizer_end << " with len " << shortest_unique_lengths[finimizer_end].value() << endl;
                 //optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
                 optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, finimizer_end, shortest_unique_colex_ranks, sbwt, is_branch);
                 if(rightmost_branch_end.has_value()) {
@@ -103,6 +104,7 @@ public:
                     int64_t p = rightmost_branch_end.value().first;
                     int64_t colex = rightmost_branch_end.value().second; 
                     // Get the global off set of the end of the k-mer
+                    cout << "Look up branch" << endl;
                     int64_t global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
                     add_to_query_result(global_kmer_end, answer);
@@ -110,6 +112,7 @@ public:
                     // Look up from Finimizer dictionary
                     int64_t p = finimizer_end;
                     int64_t colex = shortest_unique_colex_ranks[p].value();
+                    cout << "Look up finimizer" << endl; 
                     int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
                     add_to_query_result(global_kmer_end, answer);

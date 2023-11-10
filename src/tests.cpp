@@ -240,22 +240,25 @@ map<string, int64_t> get_unitig_ranks(const vector<string>& unitigs, int64_t k){
 
 }
 
+
 void test_reverse_complement_madness(){
-    int64_t k = 5;
-    vector<string> unitigs = {"ACTCG", sbwt::get_rc("CTCGT"), sbwt::get_rc("CTCGA"), sbwt::get_rc("TCGAA"), "TCGAT", "ATATA"};
+    int64_t k = 10;
+    //vector<string> unitigs = {"ACTCG", sbwt::get_rc("CTCGT"), sbwt::get_rc("CTCGA"), sbwt::get_rc("TCGAA"), "TCGAC"};
+    vector<string> unitigs = {"AACAAAAAAA", sbwt::get_rc("ACAAAAAAAA"), "CAAAAAAAAA", sbwt::get_rc("ACAAAAAAAT"), "CAAAAAAAAT"};
 
     unique_ptr<FinimizerIndex> index = build_index(unitigs, k);
 
     map<string, int64_t> unitig_ranks = get_unitig_ranks(unitigs, k);
 
-    string query = "TCGAT";
+    string query = "CAAAAAAAAA";
     FinimizerIndex::QueryResult ans = index->search(query);
 
-    cout << "true unitig rank " << unitig_ranks["TCGAT"] << endl;
+    for(string unitig : unitigs) cout << unitig << " " << unitig_ranks[unitig] << endl;
 
-    vector<pair<int64_t, int64_t>> true_local_offsets = {{unitig_ranks["TCGAT"], 0}};
+    cout << "true unitig rank " << unitig_ranks[query] << endl;
+
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{unitig_ranks[query], 0}};
     assert_equal(true_local_offsets, ans.local_offsets);
-    assert_equal({}, ans.local_offsets);
 
 }
 
