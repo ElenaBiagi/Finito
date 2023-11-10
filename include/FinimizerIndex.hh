@@ -98,7 +98,6 @@ public:
                 int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
                 //optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
                 optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, finimizer_end, shortest_unique_colex_ranks, sbwt, is_branch);
-
                 if(rightmost_branch_end.has_value()) {
                     // Look up from the branch dictionary
                     int64_t p = rightmost_branch_end.value().first;
@@ -358,7 +357,7 @@ public:
             // Use a for loop to create longer strings
             for (int i = 0; i < 4; i++) {
                 string kmer_new = last_kmer + bases[i];
-                const string reverse = sbwt::get_rc(last_kmer.c_str());
+                const string reverse = sbwt::get_rc(kmer_new.c_str());
                 pair <int64_t, int64_t> new_I = this->sbwt->update_sbwt_interval(reverse.c_str(), k, {0,n_nodes-1});
                 if (new_I.first != -1){
                     is_branch[I_start]=1;
