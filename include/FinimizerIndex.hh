@@ -115,6 +115,7 @@ public:
                     add_to_query_result(global_kmer_end, answer);
                 }
             } else {
+                // TODO check reverse complement
                 answer.local_offsets.push_back({-1, -1});
             } 
         }
@@ -223,7 +224,9 @@ public:
 
         int64_t n_nodes = this->sbwt->number_of_subsets();
         sdsl::bit_vector fmin_bv(n_nodes, 0); // Finimizer marks
-        sdsl::bit_vector fmin_found(n_nodes, 0);
+        //sdsl::bit_vector fmin_found(n_nodes, 0);
+        sdsl::int_vector fmin_found(n_nodes, 0);
+
         sdsl::bit_vector is_branch(n_nodes, 0);
         vector<uint32_t> global_offsets; // TODO: -> 64 bits
         global_offsets.reserve(n_nodes);
@@ -243,7 +246,7 @@ public:
             finimizers.insert(new_search.begin(), new_search.end());
         }
 
-        sdsl::int_vector<> packed_global_offsets(finimizers.size(), 0, 64 - __builtin_clzll(total_len));
+        sdsl::int_vector<> packed_global_offsets(finimizers.size(), 0, 64 - __builtin_clzll(*std::max_element(global_offsets.begin(), global_offsets.end())));
         
         int64_t global_offsets_idx = 0;
         for(int64_t i = 0; i < global_offsets.size(); i++){
@@ -265,7 +268,7 @@ public:
     }
 
     // TODO: 32 bits for global offsets might not be enough
-    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, sdsl::bit_vector& is_branch,vector<uint32_t>& global_offsets, const int64_t unitig_start) {
+    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::int_vector<>& fmin_found, sdsl::bit_vector& is_branch,vector<uint32_t>& global_offsets, const int64_t unitig_start) {
         const int64_t n_nodes = sbwt->number_of_subsets();
         const int64_t k = sbwt->get_k();
         const vector<int64_t>& C = sbwt->get_C_array();
@@ -318,16 +321,20 @@ public:
             if (end >= k -1 ){
                 count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
                 fmin_bv[get<2>(w_fmin)]=1;
-                if (!fmin_found[get<2>(w_fmin)]){ // if the kmer never been found before
-                    fmin_bv[get<2>(w_fmin)]=1;
+                
+                if (fmin_found[get<2>(w_fmin)]<= get<3>(w_fmin)){ // if the kmer hes been found before in a 
+                    //fmin_bv[get<2>(w_fmin)]=get<3>(w_fmin);
+
+                    fmin_found[get<2>(w_fmin)] = get<3>(w_fmin);
+
                     if ((unitig_start + get<3>(w_fmin))> UINT32_MAX){
                         std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
                     }
                     global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
                 }
-                if (get<3>(w_fmin) >= k-1){
-                    fmin_found[get<2>(w_fmin)] = 1;
-                }
+                //if (get<3>(w_fmin) >= k-1){
+                //    fmin_found[get<2>(w_fmin)] = 1;
+                //}
                 // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
                 kmer++;
                 // Check if the current minimizer is still in this window

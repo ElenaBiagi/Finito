@@ -13,6 +13,7 @@
 
 string temp_dir = "tests_temp";
 vector<string> paper_example_unitigs = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT"};
+//                                          1           2           0
 vector<string> paper_example_queries = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT", "TAGGATTTTTTAAGTCTA"};
 
 using namespace std;
@@ -69,6 +70,7 @@ void test_shortest_unique_construction(){
     sdsl::int_vector<> true_global_offsets = {10,20,14,6,4,13};
     sdsl::util::bit_compress(true_global_offsets);
     sdsl::bit_vector true_Ustart =  {0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0};
+    //sdsl::bit_vector true_is_branch =  {0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0};
 
     assert_equal(true_LCS, *index->LCS);
     assert_equal(true_unitig_concat, index->unitigs.concat);
@@ -76,7 +78,7 @@ void test_shortest_unique_construction(){
     assert_equal(true_fmin, index->fmin);
     assert_equal(true_global_offsets, index->global_offsets);
     assert_equal(true_Ustart, index->Ustart);
-
+    //assert_equal(true_is_branch, index->is_branch);
 }
 
 void test_shortest_unique_queries(){
@@ -107,9 +109,44 @@ void test_finimizer_branch(){
     vector<string> unitigs = {"ACGG", "CGGT", "GCCGT", "CGGC"} ;
     // Permuted order:            2      3        1       0
     string query = "ACGGC";
-    vector<pair<int64_t, int64_t>> true_local_offsets = {{2,0}, {0,0}};
+    /* 
+    0 $$$$ 
+    1 $$$A *
+    2 $$AC
+    3 $GCC *
+    4 $$GC
+    5 CGGC s
+    6 $$$G
+    7 $ACG
+    8 GCCG s
+    9 ACGG * s b
+    10 CCGT
+    11 CGGT s
+    */
+
+    sdsl::int_vector<> true_LCS = {0,0,0,1,1,2,0,1,2,1,0,2};
+    sdsl::util::bit_compress(true_LCS);
+    sdsl::int_vector<> true_unitig_ends = {4,9,13,17};
+    sdsl::bit_vector true_fmin = {0,1,0,1,0,0,0,0,0,1,0,0};
+    sdsl::int_vector<> true_global_offsets = {9,6,15};
+    sdsl::util::bit_compress(true_global_offsets);
+    sdsl::bit_vector true_Ustart = {0,0,0,0,0,1,0,0,1,1,0,1};
+    sdsl::bit_vector true_is_branch =  {0,0,0,0,0,0,0,0,0,1,0,0};
 
     unique_ptr<FinimizerIndex> index = build_index(unitigs);
+
+    cout << (int)index->global_offsets.width() << endl;
+    cout << (int)true_global_offsets.width() << endl;
+    assert_equal(true_LCS, *index->LCS);
+    assert_equal(true_unitig_ends, index->unitigs.ends);
+    assert_equal(true_fmin, index->fmin);
+    assert_equal(true_global_offsets, index->global_offsets);
+    assert_equal(true_Ustart, index->Ustart);
+    assert_equal(true_is_branch, index->is_branch);
+
+
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{2,0}, {0,0}};
+
     FinimizerIndex::QueryResult res = index->search(query);
     assert_equal(res.local_offsets.size(), true_local_offsets.size());
     assert_equal(res.local_offsets, true_local_offsets);
