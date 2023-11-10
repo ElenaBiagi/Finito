@@ -132,6 +132,22 @@ void test_reverse_complement_branch(){
     assert_equal(res.local_offsets, true_local_offsets);
 }
 
+void test_leftmost(){
+    // ACGG has outgoing edges T and C, but the one with C goes to the reverse complemented k-mer GCCG (CGGC)
+    int64_t k = 4;
+    vector<string> unitigs = {"CGGT", "GGTT", "TACCCGTA"}; // GG is the finimizer of CGGT and GGTC and it is stored in GGTC // reverse complement wit a C
+    // Permuted order:           1       2        0
+    //string query = "CCGGT";
+    //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
+    string query = "CGGTTACCC";
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}, {-1,-1}, {-1,-1}, {0,0}, {0,1}};
+
+    unique_ptr<FinimizerIndex> index = build_index(unitigs);
+    FinimizerIndex::QueryResult res = index->search(query);
+    assert_equal(res.local_offsets.size(), true_local_offsets.size());
+    assert_equal(res.local_offsets, true_local_offsets);
+}
+
 
 
 void test_finimizer_selection(){
@@ -184,6 +200,10 @@ int main(int argc, char** argv){
 
     cerr << "Testing reverse complement branch" << endl;
     test_reverse_complement_branch();
+    cerr << "...ok" << endl;
+
+    cerr << "Testing leftmost" << endl;
+    test_leftmost();
     cerr << "...ok" << endl;
 
     cerr << "Testing Finimizer selection" << endl;
