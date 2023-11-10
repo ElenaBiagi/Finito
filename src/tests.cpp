@@ -100,19 +100,39 @@ void test_shortest_unique_queries(){
     }
 }
 
-void test_reverse_complement_branch(){
-    // ACGG has outgoing edges T and C, but the one with C goes to the reverse complemented k-mer CGGC
+void test_finimizer_branch(){
+    // GG appears only in ACGG as part of a full kmer but it is not found as it is not the finimizer
+    // GG is stored for the k-mer $CGT
     int64_t k = 4;
-    vector<string> unitigs = {"CCGG", "CGGT", "GCCGT"};
-    // Permuted order:            1       2        0
-    string query = "CCGGT";
-    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
+    vector<string> unitigs = {"ACGG", "CGGT", "GCCGT", "CGGC"} ;
+    // Permuted order:            2      3        1       0
+    string query = "ACGGC";
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{2,0}, {0,0}};
 
     unique_ptr<FinimizerIndex> index = build_index(unitigs);
     FinimizerIndex::QueryResult res = index->search(query);
     assert_equal(res.local_offsets.size(), true_local_offsets.size());
     assert_equal(res.local_offsets, true_local_offsets);
 }
+
+void test_reverse_complement_branch(){
+    // ACGG has outgoing edges T and C, but the one with C goes to the reverse complemented k-mer GCCG (CGGC)
+    int64_t k = 4;
+    //vector<string> unitigs = {"CCGG", "CGGT", "GCCGT"}; // These are not unitigs as CCG is at the start of the first and middle of last
+    vector<string> unitigs = {"TCGG", "CGGT", "GCCGTC"}; 
+    // Permuted order:            1       2        0
+    //string query = "CCGGT";
+    //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
+    string query = "TCGGTGCCGTC";
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0},{-1,-1},{-1,-1}, {-1,-1}, {0,0}, {0,1}, {0,2}};// this is wrong but I want to print the result of query
+
+    unique_ptr<FinimizerIndex> index = build_index(unitigs);
+    FinimizerIndex::QueryResult res = index->search(query);
+    assert_equal(res.local_offsets.size(), true_local_offsets.size());
+    assert_equal(res.local_offsets, true_local_offsets);
+}
+
+
 
 void test_finimizer_selection(){
     // ACGG has outgoing edges T and C, but the one with C goes to the reverse complemented k-mer CGGC
@@ -156,6 +176,10 @@ int main(int argc, char** argv){
 
     cerr << "Testing shortest unique queries..." << endl;
     test_shortest_unique_queries();
+    cerr << "...ok" << endl;
+
+    cerr << "Testing finimizer branch" << endl;
+    test_finimizer_branch();
     cerr << "...ok" << endl;
 
     cerr << "Testing reverse complement branch" << endl;

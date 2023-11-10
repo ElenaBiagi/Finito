@@ -67,7 +67,7 @@ bool is_branching(const plain_matrix_sbwt_t& sbwt, int64_t colex){
 
 // Inclusive ends. Retuns (end, colex of end)
 // This function assumes that the k-mer we are looking for exists in the sbwt
-optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& query, int64_t kmer_end, int64_t k, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt){
+optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& is_branch){
 
     if(!finimizer_end_colex[finimizer_end].has_value()){
         throw std::runtime_error("BUG: get_rightmost_branch_end");
@@ -78,7 +78,7 @@ optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& que
     for(int64_t p = finimizer_end; p < kmer_end; p++){
         // We're not checking the last position because that branch would be
         // after the k-mer end.
-        if(is_branching(sbwt, colex)){
+        if(is_branch[colex]){//if(is_branching(sbwt, colex)){
             colex = sbwt.forward(colex, query[p+1]);
             best = {p+1, colex};
         } else{

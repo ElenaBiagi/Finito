@@ -50,6 +50,7 @@ public:
     PackedStrings unitigs;
     sdsl::bit_vector fmin;
     sdsl::rank_support_v5<> fmin_rs;
+    sdsl::bit_vector is_branch;
     sdsl::int_vector<> global_offsets;
     sdsl::bit_vector Ustart;
     sdsl::rank_support_v5<> Ustart_rs;
@@ -95,7 +96,9 @@ public:
                 // kmer exists
 
                 int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
-                optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
+                //optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, k, finimizer_end, shortest_unique_colex_ranks, sbwt);
+                optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_branch_end(query, kmer_end, finimizer_end, shortest_unique_colex_ranks, sbwt, is_branch);
+
                 if(rightmost_branch_end.has_value()) {
                     // Look up from the branch dictionary
                     int64_t p = rightmost_branch_end.value().first;
@@ -127,6 +130,9 @@ public:
         std::ofstream fmin_out(index_prefix + ".FBV.sdsl");
         sdsl::serialize(fmin, fmin_out);
 
+        std::ofstream is_branch_out(index_prefix + ".B.sdsl");
+        sdsl::serialize(is_branch, is_branch_out);
+
         std::ofstream packed_unitigs_out(index_prefix + ".packed_unitigs.sdsl");
         sdsl::serialize(unitigs.concat, packed_unitigs_out);
         
@@ -153,6 +159,10 @@ public:
         sdsl::load(fmin, fmin_bv_in);
         std::cerr<< "fmin_bv_file loaded"<<std::endl;
         sdsl::util::init_support(fmin_rs, &fmin);
+
+        ifstream is_branch_in(index_prefix + ".B.sdsl");
+        sdsl::load(is_branch, is_branch_in);
+        std::cerr<< "is_branch_file loaded"<<std::endl;
 
         ifstream global_offsets_in(index_prefix + ".O.sdsl");
         sdsl::load(global_offsets, global_offsets_in);
@@ -182,6 +192,7 @@ public:
         total += sdsl::size_in_bytes(*LCS);
         total += sdsl::size_in_bytes(fmin);
         total += sdsl::size_in_bytes(fmin_rs);
+        total += sdsl::size_in_bytes(is_branch);
         total += sdsl::size_in_bytes(global_offsets);
         total += sdsl::size_in_bytes(unitigs.concat);
         total += sdsl::size_in_bytes(unitigs.ends);
@@ -214,6 +225,7 @@ public:
         int64_t n_nodes = this->sbwt->number_of_subsets();
         sdsl::bit_vector fmin_bv(n_nodes, 0); // Finimizer marks
         sdsl::bit_vector fmin_found(n_nodes, 0);
+        sdsl::bit_vector is_branch(n_nodes, 0);
         vector<uint32_t> global_offsets; // TODO: -> 64 bits
         global_offsets.reserve(n_nodes);
         global_offsets.resize(n_nodes, 0);
@@ -227,7 +239,7 @@ public:
         vector<char> unitig_buf;
         for(int64_t i = 0; i < unitigs.number_of_strings(); i++){
             int64_t len = unitigs.get(i, unitig_buf);
-            set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len);
+            set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, is_branch, global_offsets, total_len);
             total_len += len; 
             finimizers.insert(new_search.begin(), new_search.end());
         }
@@ -246,15 +258,15 @@ public:
         index->unitigs = std::move(unitigs); // Transfer ownership
         index->fmin = std::move(fmin_bv); // Transfer ownership
         index->fmin_rs = sdsl::rank_support_v5<>(&(index->fmin));
+        index->is_branch = std::move(is_branch); // Transfer ownership
         index->global_offsets = std::move(packed_global_offsets); // Transfer ownership
         index->Ustart = std::move(Ustart); // Transfer ownership
         index->Ustart_rs = sdsl::rank_support_v5<>(&(index->Ustart)); 
 
-        
     }
 
     // TODO: 32 bits for global offsets might not be enough
-    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, vector<uint32_t>& global_offsets, const int64_t unitig_start) {
+    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::bit_vector& fmin_found, sdsl::bit_vector& is_branch,vector<uint32_t>& global_offsets, const int64_t unitig_start) {
         const int64_t n_nodes = sbwt->number_of_subsets();
         const int64_t k = sbwt->get_k();
         const vector<int64_t>& C = sbwt->get_C_array();
@@ -277,6 +289,7 @@ public:
         // Start is always < k as start <= end and end <k
         // if start == end than the frequency higher than t
         for (end = 0; end < str_len; end++) {
+            // TODO we don't need to check the char here anymore 
             c = static_cast<char>(seq[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
             char_idx = get_char_idx(c);
             if (char_idx == -1) [[unlikely]]{
@@ -327,6 +340,29 @@ public:
                     else{ 
                         w_fmin = *all_fmin.begin();
                     }
+                }
+            }
+        }
+
+        // Fill in is_branch
+        char bases[] = {'A', 'C', 'G', 'T'};
+        string last_kmer = seq.substr(str_len-k,k);
+        I = this->sbwt->update_sbwt_interval(last_kmer.c_str(), k, {0,n_nodes-1});
+        I_start = I.first;
+        if(is_branching(*(this->sbwt), I_start)){
+            is_branch[I_start]=1;
+        } else{
+            // the unitig ends if there is an undetected "branch" in the SBWT
+            // reverse complement kmer
+            last_kmer = last_kmer.substr(1,k-1);
+            // Use a for loop to create longer strings
+            for (int i = 0; i < 4; i++) {
+                string kmer_new = last_kmer + bases[i];
+                const string reverse = sbwt::get_rc(last_kmer.c_str());
+                pair <int64_t, int64_t> new_I = this->sbwt->update_sbwt_interval(reverse.c_str(), k, {0,n_nodes-1});
+                if (new_I.first != -1){
+                    is_branch[I_start]=1;
+                    break;
                 }
             }
         }
