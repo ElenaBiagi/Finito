@@ -53,22 +53,9 @@ char get_char_idx(char c){
     }
 }
 
-// TODO check if this is still needed
-bool is_branching(const plain_matrix_sbwt_t& sbwt, int64_t colex){
-    // Rewind to the start of the suffix group
-    while(colex > 0 && sbwt.get_streaming_support()[colex] == 0)
-        colex--;
-
-    return sbwt.get_subset_rank_structure().A_bits[colex]
-         + sbwt.get_subset_rank_structure().C_bits[colex]
-         + sbwt.get_subset_rank_structure().G_bits[colex]
-         + sbwt.get_subset_rank_structure().T_bits[colex]
-         > 1;
-}
-
 // Inclusive ends. Retuns (end, colex of end)
 // This function assumes that the k-mer we are looking for exists in the sbwt
-optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){//, const sdsl::bit_vector& is_branch){
+optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){
 
     if(!finimizer_end_colex[finimizer_end].has_value()){
         throw std::runtime_error("BUG: get_rightmost_branch_end");
@@ -80,7 +67,7 @@ optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, 
     for(p = finimizer_end; p < kmer_end; p++){
         // We're not checking the last position because we would extend
         // after the k-mer end.
-        if (Ustart[colex]){// if(is_branch[colex]){//if(is_branching(sbwt, colex)){
+        if (Ustart[colex]){
             best = {p, colex};  
         } 
         colex = sbwt.forward(colex, query[p+1]);

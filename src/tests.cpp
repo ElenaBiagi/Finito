@@ -69,7 +69,6 @@ void test_shortest_unique_construction(){
     sdsl::int_vector<> true_global_offsets = {10,20,14,6,4,13};
     sdsl::util::bit_compress(true_global_offsets);
     sdsl::bit_vector true_Ustart =  {0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0};
-    //sdsl::bit_vector true_is_branch =  {0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0};
 
     assert_equal(true_LCS, *index->LCS);
     assert_equal(true_unitig_concat, index->unitigs.concat);
@@ -77,7 +76,6 @@ void test_shortest_unique_construction(){
     assert_equal(true_fmin, index->fmin);
     assert_equal(true_global_offsets, index->global_offsets);
     assert_equal(true_Ustart, index->Ustart);
-    //assert_equal(true_is_branch, index->is_branch);
 }
 
 void test_shortest_unique_queries(){
@@ -130,7 +128,6 @@ void test_finimizer_branch(){
     sdsl::int_vector<> true_global_offsets = {9,6,15};
     sdsl::util::bit_compress(true_global_offsets);
     sdsl::bit_vector true_Ustart = {0,0,0,0,0,1,0,0,1,1,0,1};
-    sdsl::bit_vector true_is_branch =  {0,0,0,0,0,0,0,0,0,1,0,0};
 
     unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
 
@@ -141,8 +138,6 @@ void test_finimizer_branch(){
     assert_equal(true_fmin, index->fmin);
     assert_equal(true_global_offsets, index->global_offsets);
     assert_equal(true_Ustart, index->Ustart);
-    assert_equal(true_is_branch, index->is_branch);
-
 
     vector<pair<int64_t, int64_t>> true_local_offsets = {{2,0}, {0,0}};
 
