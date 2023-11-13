@@ -53,6 +53,7 @@ char get_char_idx(char c){
     }
 }
 
+// TODO check if this is still needed
 bool is_branching(const plain_matrix_sbwt_t& sbwt, int64_t colex){
     // Rewind to the start of the suffix group
     while(colex > 0 && sbwt.get_streaming_support()[colex] == 0)
@@ -67,7 +68,7 @@ bool is_branching(const plain_matrix_sbwt_t& sbwt, int64_t colex){
 
 // Inclusive ends. Retuns (end, colex of end)
 // This function assumes that the k-mer we are looking for exists in the sbwt
-optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& is_branch){
+optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){//, const sdsl::bit_vector& is_branch){
 
     if(!finimizer_end_colex[finimizer_end].has_value()){
         throw std::runtime_error("BUG: get_rightmost_branch_end");
@@ -75,31 +76,34 @@ optional<pair<int64_t, int64_t>> get_rightmost_branch_end(const std::string& que
 
     int64_t colex = finimizer_end_colex[finimizer_end].value();
     optional<pair<int64_t, int64_t>> best = nullopt;
-    for(int64_t p = finimizer_end; p < kmer_end; p++){
-        // We're not checking the last position because that branch would be
+    int64_t p;
+    for(p = finimizer_end; p < kmer_end; p++){
+        // We're not checking the last position because we would extend
         // after the k-mer end.
-        if(is_branch[colex]){//if(is_branching(sbwt, colex)){
-            colex = sbwt.forward(colex, query[p+1]);
-            best = {p+1, colex};
-        } else{
-            colex = sbwt.forward(colex, query[p+1]);
-        }
+        if (Ustart[colex]){// if(is_branch[colex]){//if(is_branching(sbwt, colex)){
+            best = {p, colex};  
+        } 
+        colex = sbwt.forward(colex, query[p+1]);
     }
+    // Check also the last position without extending further
+    if (Ustart[colex]){
+            best = {p, colex};
+            
+        }
     return best;
-
-    //for(int64_t p = kmer_end - 1; p >= finimizer_end; p--){
-    //    if(finimizer_end_colex[p].has_value() && is_branching(sbwt, finimizer_end_colex[p].value())){
-    //        char c = query[p+1];
-    //        int64_t colex = sbwt.forward(finimizer_end_colex[p].value(), c); // there should be a branch with input[p+1] because if we are in this function, the k-mer we are looking for should exist
-    //        if(colex == -1) throw std::runtime_error("BUG: could not find edge with label " + c);
-    //        return optional<pair<int64_t, int64_t>>({p+1, colex}); // First k-mer end after branch
-    //    }
-    //}
-    //return nullopt;
 }
 
 // Returns the end point (inclusice) of the first k-mer in the concatenation of the unitigs
 int64_t lookup_from_branch_dictionary(int64_t kmer_colex, int64_t k, const sdsl::rank_support_v5<>& Ustart_rs, const PackedStrings& unitigs){
+    int64_t unitig_rank = Ustart_rs.rank(kmer_colex);
+    assert(unitig_rank < unitigs.ends.size());
+    int64_t global_unitig_start = 0;
+    if(unitig_rank > 0) global_unitig_start = unitigs.ends[unitig_rank-1];
+    return global_unitig_start + k - 1;
+}
+
+// Returns the end point (inclusice) of the first k-mer in the concatenation of the unitigs
+int64_t lookup_from_branch_dictionary_Ustart(int64_t kmer_colex, int64_t k, const sdsl::rank_support_v5<>& Ustart_rs, const PackedStrings& unitigs){
     int64_t unitig_rank = Ustart_rs.rank(kmer_colex);
     assert(unitig_rank < unitigs.ends.size());
     int64_t global_unitig_start = 0;
