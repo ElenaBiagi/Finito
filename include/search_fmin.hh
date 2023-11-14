@@ -379,7 +379,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, out_stream_t& out, const Fi
     const int64_t k = index.sbwt->get_k();
     int64_t total_micros = 0;
     int64_t number_of_queries = 0;
-    int64_t kmers_count = 0 , count, count_rev, kmers_count_rev = 0;
+    int64_t kmers_count = 0 , kmers_count_rev = 0; // todo chek if we need all of these
     vector<int64_t> out_buffer, out_buffer_rev;
 
     int64_t query_seq=0;
@@ -390,23 +390,33 @@ int64_t run_fmin_queries_streaming(reader_t& reader, out_stream_t& out, const Fi
         //pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, global_offsets, ef_endpoints, Ustart_rs, found_kmers);
         FinimizerIndex::QueryResult result = index.search(reader.read_buf);
 
-        for(int64_t i = 0; i < result.local_offsets.size(); i++){
+        //reverse compl
+        const string reverse = sbwt::get_rc(reader.read_buf);
+        FinimizerIndex::QueryResult r_result = index.search(reverse);
+        int64_t tot_kmers = result.local_offsets.size();
+        int64_t str_len = reverse.length(); // the string and its reverse complement have the same length
+        for(int64_t i = 0; i < tot_kmers; i++){
             int64_t unitig, pos;
-            std::tie(unitig,pos) = result.local_offsets[i];
+            if (result.local_offsets[i].first==-1) {
+                std::tie(unitig,pos) = r_result.local_offsets[str_len-k-i];
+            } else{
+                std::tie(unitig,pos) = result.local_offsets[i];
+            }
             if(i > 0) out << ' ';
             out << '(' << unitig << ',' << pos << ')';
         }
         out << '\n';
 
-        number_of_queries += result.local_offsets.size();
+        number_of_queries += tot_kmers;//result.local_offsets.size();
         kmers_count += result.n_found;
+        kmers_count_rev += r_result.n_found;
      
         total_micros += cur_time_micros() - t0;
     }
     write_log("k " + to_string(k), LogLevel::MAJOR);
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     write_log("Found kmers: " + to_string(kmers_count), LogLevel::MAJOR);
-    //write_log("Found kmers reverse : " + to_string(kmers_count_rev), LogLevel::MAJOR);
+    write_log("Found kmers reverse : " + to_string(kmers_count_rev), LogLevel::MAJOR);
     write_log("Total found kmers: " + to_string(kmers_count+kmers_count_rev), LogLevel::MAJOR);
 
     std::ofstream statsfile;
