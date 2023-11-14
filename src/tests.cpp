@@ -255,6 +255,39 @@ void test_incoming_rc_branch(){
 
 }
 
+void test_reverse_complement_query(){
+    // ACGG has outgoing edges T and C, but the one with C goes to the reverse complemented k-mer GCCG (CGGC)
+    int64_t k = 4;
+    vector<string> unitigs = {"CGGT", "GGTT", "TACCCGTA"}; // GG is the finimizer of CGGT and GGTC and it is stored in GGTC // reverse complement with a C
+    // Permuted order:           1       2        0
+    //string query = "CCGGT";
+    //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
+    //string query = "CGGTTACCC";
+    string query = "ACCGTA"; // TACGGT
+
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {0,3}, {0,4}};
+
+    vector<pair<int64_t, int64_t>> local_offsets;
+    unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
+    FinimizerIndex::QueryResult res = index->search(query);
+    FinimizerIndex::QueryResult rev_res = index->search(sbwt::get_rc(query));
+
+    int64_t tot_kmers = res.local_offsets.size();
+    int64_t str_len = query.length(); // the string and its reverse complement have the same length
+    for(int64_t i = 0; i < tot_kmers; i++){
+        int64_t unitig, pos;
+        if (res.local_offsets[i].first==-1) {
+            std::tie(unitig,pos) = rev_res.local_offsets[str_len-k-i];
+        } else{
+            std::tie(unitig,pos) = res.local_offsets[i];
+        }
+        local_offsets.push_back({unitig,pos});
+    }
+
+    assert_equal(res.local_offsets.size(), true_local_offsets.size());
+    assert_equal(local_offsets, true_local_offsets);
+}
+
 int main(int argc, char** argv){
     // Create test directory if does not exist
     if (!exists(temp_dir)){
@@ -287,6 +320,10 @@ int main(int argc, char** argv){
  
     cerr << "Testing incoming rc branch" << endl;
     test_incoming_rc_branch();
+    cerr << "...ok" << endl;
+
+    cerr << "Testing rc query" << endl;
+    test_reverse_complement_query();
     cerr << "...ok" << endl;
 
     cerr << "ALL TESTS PASSED" << endl;
