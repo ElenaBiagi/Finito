@@ -258,14 +258,12 @@ void test_incoming_rc_branch(){
 void test_reverse_complement_query(){
     // ACGG has outgoing edges T and C, but the one with C goes to the reverse complemented k-mer GCCG (CGGC)
     int64_t k = 4;
-    vector<string> unitigs = {"CGGT", "GGTT", "TACCCGTA"}; // GG is the finimizer of CGGT and GGTC and it is stored in GGTC // reverse complement with a C
+    vector<string> unitigs = {"CGGT", "GGTT", "TACCCGTA"};
     // Permuted order:           1       2        0
-    //string query = "CCGGT";
-    //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
-    //string query = "CGGTTACCC";
-    string query = "ACCGTA"; // TACGGT
+    
+    string query = "ACCGTACC"; // TACGGT
 
-    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {0,3}, {0,4}};
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {0,3}, {0,4}, {-1, -1}, {0,0}};
 
     vector<pair<int64_t, int64_t>> local_offsets;
     unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
