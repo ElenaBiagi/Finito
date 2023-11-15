@@ -379,7 +379,8 @@ int64_t run_fmin_queries_streaming(reader_t& reader, out_stream_t& out, const Fi
     const int64_t k = index.sbwt->get_k();
     int64_t total_micros = 0;
     int64_t number_of_queries = 0;
-    int64_t kmers_count = 0 , kmers_count_rev = 0; // todo chek if we need all of these
+    int64_t kmers_count = 0 , kmers_count_rev = 0;
+    int64_t total_positive = 0;
     vector<int64_t> out_buffer, out_buffer_rev;
 
     int64_t query_seq=0;
@@ -402,14 +403,15 @@ int64_t run_fmin_queries_streaming(reader_t& reader, out_stream_t& out, const Fi
             } else{
                 std::tie(unitig,pos) = result.local_offsets[i];
             }
+            if(unitig != -1) total_positive++;
             if(i > 0) out << ' ';
             out << '(' << unitig << ',' << pos << ')';
         }
         out << '\n';
 
-        number_of_queries += tot_kmers;//result.local_offsets.size();
         kmers_count += result.n_found;
         kmers_count_rev += r_result.n_found;
+        number_of_queries += tot_kmers;//result.local_offsets.size();
      
         total_micros += cur_time_micros() - t0;
     }
@@ -417,7 +419,7 @@ int64_t run_fmin_queries_streaming(reader_t& reader, out_stream_t& out, const Fi
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     write_log("Found kmers: " + to_string(kmers_count), LogLevel::MAJOR);
     write_log("Found kmers reverse : " + to_string(kmers_count_rev), LogLevel::MAJOR);
-    write_log("Total found kmers: " + to_string(kmers_count+kmers_count_rev), LogLevel::MAJOR);
+    write_log("Total found kmers: " + to_string(total_positive), LogLevel::MAJOR);
 
     std::ofstream statsfile;
     statsfile.open(stats_filename, std::ios_base::app); // append instead of overwrite
