@@ -1,6 +1,7 @@
 mod minimizer_index;
 
 use std::path::PathBuf;
+use jseqio::reverse_complement;
 use minimizer_index::MinimizerIndex;
 
 use clap::ArgAction;
@@ -107,7 +108,12 @@ fn main() {
                 .long("query")
                 .short('q')
                 .required(true)
-                .value_parser(clap::value_parser!(PathBuf))))
+                .value_parser(clap::value_parser!(PathBuf))
+            ).arg(Arg::new("reverse-complements")
+                .help("Whether to also report reverse complement matches")
+                .long("reverse-complements")
+                .short('r')
+                .action(ArgAction::SetTrue)))
         .subcommand(Command::new("extract-index-unitigs")
             .arg_required_else_help(true)
             .arg(Arg::new("index")
@@ -158,13 +164,21 @@ fn main() {
         Some(("query", cli_matches)) => {
             let indexfile: &PathBuf = cli_matches.get_one("index").unwrap();
             let queryfile: &PathBuf = cli_matches.get_one("query").unwrap();
+            let rc = cli_matches.get_flag("reverse-complements");
             let index = MinimizerIndex::new_from_serialized(std::fs::File::open(indexfile).unwrap());
             let k = index.get_k();
             let mut query_reader = DynamicFastXReader::from_file(&queryfile).unwrap();
             while let Some(query) = query_reader.read_next().unwrap(){
                 let mut answers = Vec::<(isize, isize)>::new(); // End points in unitigs. -1 means does not exist
                 for kmer in query.seq.windows(k){
-                    let occurrences = index.lookup_kmer(kmer);
+                    let mut occurrences = index.lookup_kmer(kmer);
+                    if rc {
+                        let rc_kmer = reverse_complement(kmer);
+                        if rc_kmer != kmer { // Don't re-search self-rc kmers
+                            let rc_occs = index.lookup_kmer(&rc_kmer);
+                            occurrences.extend_from_slice(rc_occs.as_slice());
+                        }
+                    }
                     if occurrences.len() > 1{
                         eprintln!("Error: k-mer {} occurs in {} unitigs", String::from_utf8_lossy(kmer), occurrences.len());
                         std::process::exit(1);
