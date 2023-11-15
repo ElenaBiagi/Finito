@@ -114,6 +114,7 @@ vector<int64_t> kmer_LCS_streaming_search(const plain_matrix_sbwt_t& sbwt, const
     pair<int64_t, int64_t> I_new;
 
     for (end = 0; end < str_len; end++) {
+
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -125,9 +126,14 @@ vector<int64_t> kmer_LCS_streaming_search(const plain_matrix_sbwt_t& sbwt, const
             // (1) kmer (or subseq) NOT found
             // We already know that no kmer will be found thus we update start
             while(I_new.first == -1){
+                if (start == end){
+                    I_new = {0, n_nodes - 1};
+                    break;
+                }
                 start++;
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
                 I_new = sbwt.update_sbwt_interval(&c, 1, I);
+                
             }
             I = I_new;
         
@@ -145,13 +151,11 @@ vector<int64_t> kmer_LCS_streaming_search(const plain_matrix_sbwt_t& sbwt, const
 vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
     //vector<int64_t> colex_ranks = sbwt.streaming_search(query);
     vector<int64_t> colex_ranks = kmer_LCS_streaming_search(sbwt, LCS, query);
-    vector<optional<int64_t>> answers;
+    vector<optional<int64_t>> answers(sbwt.get_k()-1,optional<int64_t>());
 
-    for(int64_t i = 0; i < sbwt.get_k()-1; i++) // First k-1 are always null because the k-mer is not full
-        answers.push_back(optional<int64_t>());
-
-    for(int64_t x : colex_ranks)
+    for(int64_t x : colex_ranks){
         answers.push_back(x == -1 ? optional<int64_t>() : optional<int64_t>(x));
+    }
     
     return answers;
 }
@@ -175,7 +179,6 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
     vector<optional<int64_t>> shortest_unique_colex_ranks(query.size());
     
     for (int64_t end = 0; end < str_len; end++) {
-        //cout << "I: " << I.first << " " << I.second << endl;
         char c = static_cast<char>(query[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         char char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
@@ -184,13 +187,15 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
             return {};
         } else {
             I_new = sbwt.update_sbwt_interval(&c, 1, I);
-            //cout << "I_new: " << I_new.first << " " << I_new.second << endl;
-
 
             // (1) Finimizer(subseq) NOT found
             while(I_new.first == -1){
                 shortest_unique_lengths[end]= optional<int64_t>{};
                 shortest_unique_colex_ranks[end]= optional<int64_t>{};
+                if (start == end){
+                    I_new = {0, n_nodes - 1};
+                    break;
+                }
                 start++;
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
                 I_new = sbwt.update_sbwt_interval(&c, 1, I);
