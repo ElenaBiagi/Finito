@@ -125,7 +125,7 @@ void test_finimizer_branch(){
     sdsl::util::bit_compress(true_LCS);
     sdsl::int_vector<> true_unitig_ends = {4,9,13,17};
     sdsl::bit_vector true_fmin = {0,1,0,1,0,0,0,0,0,1,0,0};
-    sdsl::int_vector<> true_global_offsets = {9,6,15};
+    sdsl::int_vector<> true_global_offsets = {9,6,2};
     sdsl::util::bit_compress(true_global_offsets);
     sdsl::bit_vector true_Ustart = {0,0,0,0,0,1,0,0,1,1,0,1};
 

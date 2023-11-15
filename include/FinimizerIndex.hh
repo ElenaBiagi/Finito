@@ -311,11 +311,9 @@ public:
             }
             if (end >= k -1 ){
                 count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
-                fmin_bv[get<2>(w_fmin)]=1;
-                
-                if (fmin_found[get<2>(w_fmin)]<= get<3>(w_fmin)){ // if the kmer hes been found before in a 
-                    //fmin_bv[get<2>(w_fmin)]=get<3>(w_fmin);
 
+                if (fmin_found[get<2>(w_fmin)] == 0 or fmin_found[get<2>(w_fmin)]< get<3>(w_fmin)){ // if the finimizer has been found before in a full kmer
+                    fmin_bv[get<2>(w_fmin)]=1;
                     fmin_found[get<2>(w_fmin)] = get<3>(w_fmin);
 
                     if ((unitig_start + get<3>(w_fmin))> UINT32_MAX){
@@ -323,9 +321,6 @@ public:
                     }
                     global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
                 }
-                //if (get<3>(w_fmin) >= k-1){
-                //    fmin_found[get<2>(w_fmin)] = 1;
-                //}
                 // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
                 kmer++;
                 // Check if the current minimizer is still in this window
