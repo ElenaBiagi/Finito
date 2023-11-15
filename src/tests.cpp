@@ -261,9 +261,9 @@ void test_reverse_complement_query(){
     vector<string> unitigs = {"CGGT", "GGTT", "TACCCGTA"};
     // Permuted order:           1       2        0
     
-    string query = "ACCGTACC"; // TACGGT
+    string query = "AACCGTACC"; // GGTACGGTT
 
-    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {0,3}, {0,4}, {-1, -1}, {0,0}};
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{2,0},{1,0}, {0,3}, {0,4}, {-1, -1}, {0,0}};
 
     vector<pair<int64_t, int64_t>> local_offsets;
     unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
