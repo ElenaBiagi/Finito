@@ -127,6 +127,7 @@ vector<int64_t> kmer_LCS_streaming_search(const plain_matrix_sbwt_t& sbwt, const
             // We already know that no kmer will be found thus we update start
             while(I_new.first == -1){
                 if (start == end){
+                    start++;
                     I_new = {0, n_nodes - 1};
                     break;
                 }
@@ -193,6 +194,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
                 shortest_unique_lengths[end]= optional<int64_t>{};
                 shortest_unique_colex_ranks[end]= optional<int64_t>{};
                 if (start == end){
+                    start++;
                     I_new = {0, n_nodes - 1};
                     break;
                 }
