@@ -286,6 +286,35 @@ void test_reverse_complement_query(){
     assert_equal(local_offsets, true_local_offsets);
 }
 
+void test_walk(){
+    // ACGG has outgoing edges T and C, but the one with C goes to the reverse complemented k-mer GCCG (CGGC)
+    int64_t k = 4;
+    vector<string> unitigs = {"CGGT", "GGTT", "TACCCGTAAACACCGTGGAGACGGCTCTTTAGGAAGCTGTCAA"}; // GG is the finimizer of CGGT and GGTC and it is stored in GGTC // reverse complement wit a C
+    // Permuted order:           1       2        0
+    //string query = "CCGGT";
+    //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
+    //string query = "CGGTTACCC";
+    //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}, {-1,-1}, {-1,-1}, {0,0}, {0,1}};
+
+    string query = "GGTTACCCGTAAACACCGTGGAGACGGCTCTTTAGGAAGCTGTCGAAGCTGTCAAAC"; //GAAGCTGTCAA + AC
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{2,0},{-1,-1},{-1,-1},
+                                                         {0,0}, {0,1}, {0,2}, {0,3}, {0,4}, {0,5},
+                                                         {0,6}, {0,7}, {0,8}, {0,9}, {0,10}, {0,11},
+                                                         {0,12}, {0,13}, {0,14}, {0,15}, {0,16}, {0,17},
+                                                         {0,18}, {0,19}, {0,20}, {0,21}, {0,22}, {0,23},
+                                                         {0,24}, {0,25}, {0,26}, {0,27}, {0,28}, {0,29},
+                                                         {0,30}, {0,31}, {0,32}, {0,33}, {0,34}, {0,35},
+                                                         {0,36}, {0,37}, 
+                                                         {-1,-1},{-1,-1}, {-1,-1}, 
+                                                         {0,32}, {0,33}, {0,34}, {0,35}, {0,36}, {0,37}, {0,38}, {0,39},
+                                                         {-1,-1}, {0,7}};
+
+    unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
+    FinimizerIndex::QueryResult res = index->search(query);
+    assert_equal(res.local_offsets.size(), true_local_offsets.size());
+    assert_equal(res.local_offsets, true_local_offsets);
+}
+
 int main(int argc, char** argv){
     // Create test directory if does not exist
     if (!exists(temp_dir)){
@@ -322,6 +351,10 @@ int main(int argc, char** argv){
 
     cerr << "Testing rc query" << endl;
     test_reverse_complement_query();
+    cerr << "...ok" << endl;
+
+    cerr << "Testing WALK" << endl;
+    test_walk();
     cerr << "...ok" << endl;
 
     cerr << "ALL TESTS PASSED" << endl;

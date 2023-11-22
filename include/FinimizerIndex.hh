@@ -2,6 +2,8 @@
 
 #include <string>
 #include <cstring>
+#include <algorithm>
+#include <bitset>
 #include "sbwt/cxxopts.hpp"
 #include "sbwt/globals.hh"
 #include "sbwt/SBWT.hh"
@@ -41,6 +43,57 @@ private:
         answer.local_offsets.push_back(local_start);
         answer.n_found++;
     }
+
+    void walk_in_unitigs(const std::string& query, const PackedStrings& unitigs, int64_t global_kmer_end, QueryResult& answer, int64_t& kmer_end, const int64_t k) const{
+        int64_t unitig_id = answer.local_offsets.back().first;
+        int64_t u_end = unitigs.ends[unitig_id]; // exlusive end
+        int64_t max_match = std::min(u_end - global_kmer_end-1, (int64_t)(query.length()-kmer_end-1));
+
+        if (global_kmer_end > u_end or max_match <= 0){return;}
+        kmer_end++;
+        //convert part of the query to an int_vector<2>
+        sdsl::int_vector<2> query_v(max_match);
+        
+        for (int64_t i = 0; i < max_match;) {
+            char c = query[kmer_end+i];
+            switch(c){
+                case 'A': query_v[i++] = 0; break;
+                case 'C': query_v[i++] = 1; break;
+                case 'G': query_v[i++] = 2; break;
+                case 'T': query_v[i++] = 3; break;
+                default: throw std::runtime_error("Invalid character: " + c);
+            }
+        }
+
+        int64_t word_start = 0;
+        while(max_match > 0){
+            int word_len = std::min({(int64_t)32, max_match});
+            uint64_t query_word = query_v.get_int(word_start, (word_len)*2); // word start = least significant bit (word_len+1)*2-1
+            uint64_t unitig_word = unitigs.concat.get_int(word_start + (global_kmer_end+1)*2, (word_len)*2);
+
+            int64_t result = query_word ^ unitig_word;
+
+            if (result){
+                int trailing_zeros = __builtin_ctzll(result);
+                for (int i = 0; i < trailing_zeros/2; i++){
+                    global_kmer_end++;
+                    add_to_query_result(global_kmer_end, answer);
+                    kmer_end++; // keep track of how many kmers were found    
+                }
+                break; // No need to check further. A mismatch has been found.
+            }
+            int trailing_zeros = (word_len)*2;
+            for (int i = 0; i < trailing_zeros/2; i++){
+                global_kmer_end++;
+                add_to_query_result(global_kmer_end, answer);
+                kmer_end++; // keep track of how many kmers were found    
+            }
+            max_match -= word_len;
+            word_start += word_len*2;
+        }
+        kmer_end--; // will be updated later
+    }
+
 
 public:
 
@@ -93,7 +146,7 @@ public:
         for(int64_t kmer_end = k-1; kmer_end < query.size(); kmer_end++) {
             if(kmer_colex_ranks[kmer_end].has_value()){
                 // kmer exists
-
+                int64_t global_kmer_end;
                 int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
                 //cout << "Finimizer ends at: " << finimizer_end << " with len " << shortest_unique_lengths[finimizer_end].value() << endl;
                 optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_Ustart(query, kmer_end, finimizer_end, shortest_unique_colex_ranks, sbwt, Ustart);
@@ -102,21 +155,21 @@ public:
                     int64_t p = rightmost_branch_end.value().first;
                     int64_t colex = rightmost_branch_end.value().second; 
                     // Get the global off set of the end of the k-mer
-                    //cout << "Look up branch" << endl;
-                    int64_t global_kmer_end = lookup_from_branch_dictionary_Ustart(colex, k, Ustart_rs, unitigs);
+                    global_kmer_end = lookup_from_branch_dictionary_Ustart(colex, k, Ustart_rs, unitigs);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
-                    add_to_query_result(global_kmer_end, answer);
                 } else {
                     //Look up from Finimizer dictionary
                     int64_t p = finimizer_end;
                     int64_t colex = shortest_unique_colex_ranks[p].value();
-                    //cout << "Look up finimizer" << endl; 
-                    int64_t global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
+                    global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
-                    add_to_query_result(global_kmer_end, answer);
+                }
+                // A kmers has been found 
+                add_to_query_result(global_kmer_end, answer);
+                if ((kmer_end + 1)< query.size()){
+                    walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k);
                 }
             } else {
-                // TODO check reverse complement
                 answer.local_offsets.push_back({-1, -1});
             } 
         }
