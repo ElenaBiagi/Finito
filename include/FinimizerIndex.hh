@@ -129,27 +129,20 @@ public:
 
         if(query.size() < k) answer; 
 
-        // For each position of the input, the SBWT colex rank of the k-mer that ends there, if exists.
-        // A k-mer does not exist if the ending position is too close to the start of the input, or the SBWT does
-        // not contain that k-mer.
-        vector<optional<int64_t>> kmer_colex_ranks = get_kmer_colex_ranks(sbwt, *LCS, query);
 
-        // For each position of the input, the length of the shortest unique substring that ends there, if exists
-        // Unique substrings may not exist near the start of the input.
-        vector<optional<int64_t>> shortest_unique_lengths;
-
-        // For each position of the input, the colex rank ofthe shortest unique substring that ends there, if exists
-        vector<optional<int64_t>> shortest_unique_colex_ranks;
-
-        std::tie(shortest_unique_lengths, shortest_unique_colex_ranks) = get_shortest_unique_lengths_and_colex_ranks(sbwt, *LCS, query);
-
+        //Find kmers and Finimizers together
+        pair<vector<optional<int64_t>>,vector< optional< pair<int64_t, int64_t>> >> colex_finimizers = rarest_fmin_streaming_search(sbwt, *LCS, query);
+        vector<optional<int64_t>> kmer_colex_ranks = colex_finimizers.first;
+        vector<optional< pair<int64_t, int64_t>>> finimizers_ends_colex = colex_finimizers.second;
+        
         for(int64_t kmer_end = k-1; kmer_end < query.size(); kmer_end++) {
             if(kmer_colex_ranks[kmer_end].has_value()){
                 // kmer exists
                 int64_t global_kmer_end;
-                int64_t finimizer_end = pick_finimizer(kmer_end, k, shortest_unique_lengths, shortest_unique_colex_ranks);
+                int64_t finimizer_end = finimizers_ends_colex[kmer_end].value().first;
                 //cout << "Finimizer ends at: " << finimizer_end << " with len " << shortest_unique_lengths[finimizer_end].value() << endl;
-                optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_Ustart(query, kmer_end, finimizer_end, shortest_unique_colex_ranks, sbwt, Ustart);
+                optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_Ustart(query, kmer_end, finimizer_end, finimizers_ends_colex, sbwt, Ustart);
+
                 if(rightmost_branch_end.has_value()) {
                     // Look up from the branch dictionary
                     int64_t p = rightmost_branch_end.value().first;
@@ -160,20 +153,21 @@ public:
                 } else {
                     //Look up from Finimizer dictionary
                     int64_t p = finimizer_end;
-                    int64_t colex = shortest_unique_colex_ranks[p].value();
+                    //int64_t colex = shortest_unique_colex_ranks[p].value();
+                    int64_t colex = finimizers_ends_colex[kmer_end].value().second;
+
                     global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
                 }
-                // A kmers has been found 
+                // A kmer has been found 
                 add_to_query_result(global_kmer_end, answer);
                 if ((kmer_end + 1)< query.size()){
                     walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k);
                 }
-            } else {
+            } else { // TODO check reverse complement
                 answer.local_offsets.push_back({-1, -1});
             } 
         }
-
         return answer;
     }
 
@@ -358,7 +352,10 @@ public:
                     freq = (I.second - I.first + 1);
                     I_start = I.first;
                     }
-                    if (w_fmin > curr_substr) {w_fmin = curr_substr;}
+                    if (w_fmin > curr_substr) {
+                        w_fmin = curr_substr;
+                        all_fmin.clear(); // this is the best finimizer of the current kmer so far
+                    }
                     all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<int64_t>(I.first)});
                 }
             }
@@ -379,12 +376,7 @@ public:
                 // Check if the current minimizer is still in this window
                 while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
                     all_fmin.erase(all_fmin.begin());
-                    if (all_fmin.empty()){
-                        w_fmin={n_nodes,k+1,kmer+1,kmer+k};
-                    }
-                    else{ 
-                        w_fmin = *all_fmin.begin();
-                    }
+                    w_fmin = (all_fmin.empty()) ? tuple<int64_t, int64_t, int64_t, int64_t> {n_nodes,k+1,kmer+1,kmer+k} : *all_fmin.begin();
                 }
             }
         }

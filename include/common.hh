@@ -55,13 +55,39 @@ char get_char_idx(char c){
 
 // Inclusive ends. Retuns (end, colex of end)
 // This function assumes that the k-mer we are looking for exists in the sbwt
-optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){
+optional<pair<int64_t, int64_t>> get_rightmost_Ustart_old(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){
 
     if(!finimizer_end_colex[finimizer_end].has_value()){
         throw std::runtime_error("BUG: get_rightmost_branch_end");
     }
 
     int64_t colex = finimizer_end_colex[finimizer_end].value();
+    optional<pair<int64_t, int64_t>> best = nullopt;
+    int64_t p;
+    for(p = finimizer_end; p < kmer_end; p++){
+        // We're not checking the last position because we would extend
+        // after the k-mer end.
+        if (Ustart[colex]){
+            best = {p, colex};  
+        } 
+        colex = sbwt.forward(colex, query[p+1]);
+    }
+    // Check also the last position without extending further
+    if (Ustart[colex]){
+            best = {p, colex};
+            
+        }
+    return best;
+}
+// Inclusive ends. Retuns (end, colex of end)
+// This function assumes that the k-mer we are looking for exists in the sbwt
+optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<pair<int64_t, int64_t>>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){
+
+    if(!finimizer_end_colex[kmer_end].has_value()){
+        throw std::runtime_error("BUG: get_rightmost_branch_end");
+    }
+
+    int64_t colex = finimizer_end_colex[kmer_end].value().second;
     optional<pair<int64_t, int64_t>> best = nullopt;
     int64_t p;
     for(p = finimizer_end; p < kmer_end; p++){
@@ -103,6 +129,104 @@ int64_t lookup_from_finimizer_dictionary(int64_t finimizer_colex, const sdsl::ra
     return global_offsets[finimizer_id];
 }
 
+
+// If a kmer exists, it returns:
+// kmers colex rank
+// finimizer end, finimizer colex rank
+pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rarest_fmin_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    const int64_t k = sbwt.get_k();
+    const vector<int64_t>& C = sbwt.get_C_array();
+    int64_t freq;
+    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    const int64_t str_len = input.size();
+    tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len+1}; // {freq, len, I start, end}
+
+    //vector<int64_t> found_kmers(str_len, -1);
+    vector<optional<int64_t>> colex_ranks(str_len, optional<int64_t>());
+    vector<optional< pair<int64_t, int64_t>>> finimizers(str_len, optional<pair<int64_t, int64_t>>());
+
+
+    int64_t count = 0;
+    int64_t start = 0;
+    int64_t end;
+    int64_t kmer_start = 0;
+    pair<int64_t, int64_t> I = {0, n_nodes - 1}, I_kmer = {0, n_nodes - 1};
+    pair<int64_t, int64_t> I_new, I_kmer_new;
+    int64_t I_start;
+    tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
+    
+    // the idea is to start from the first pos which is i and move until finding something of ok freq
+    // then drop the first char keeping track of which char you are starting from
+    // Start is always < k as start <= end and end <k
+    // if start == end than the frequency higher than t
+    for (end = 0; end < str_len; end++) {
+        char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
+        int64_t char_idx = get_char_idx(c);
+        if (char_idx == -1) [[unlikely]]{
+            cerr << "Error: unknown character: " << c << endl;
+            cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
+            return {};
+        } else {
+            // 1) fmin interval
+            I_new = sbwt.update_sbwt_interval(&c, 1, I); //I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
+            // (1) Finimizer(subseq) NOT found
+            // TODO We already know that no kmer will be found
+            while(I_new.first == -1){
+                kmer_start = ++start;
+                I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
+                I_new = sbwt.update_sbwt_interval(&c, 1, I);// I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
+                I_kmer = I_new;
+            }
+            I = I_new;
+            freq = (I.second - I.first + 1);
+            I_start = I.first;
+            // (2) Finimizer(subseq) freq > 0
+            // Check if the Kmer interval has to be updated
+            if ( start != kmer_start){
+                I_kmer_new = sbwt.update_sbwt_interval(&c, 1, I_kmer); //I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
+                while(I_kmer_new.first == -1){
+                    // kmer NOT found
+                    kmer_start++;
+                    I_kmer = drop_first_char(end - kmer_start, I_kmer, LCS, n_nodes);
+                    I_kmer_new = sbwt.update_sbwt_interval(&c, 1, I_kmer);//I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
+                } 
+                I_kmer = I_kmer_new;
+            } else { 
+                I_kmer = I;
+            }
+            // (2b) Finimizer found
+            if (freq ==1){ // 1. rarest
+                while (freq == 1) { // 2. shortest
+                    curr_substr = {freq, end - start + 1, I_start, end};
+                    // 2. drop the first char
+                    // When you drop the first char you are sure to find x_2..m since you found x_1..m before
+                    start ++;
+                    I = drop_first_char(end - start + 1, I, LCS, n_nodes);
+                    freq = (I.second - I.first + 1);
+                    I_start = I.first;
+                }
+                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
+                all_fmin.insert(curr_substr);
+            }
+            // Check if the kmer is found
+            if (end - kmer_start + 1 == k){
+                count++;
+                while ((get<3>(w_fmin)-get<1>(w_fmin) +1) < kmer_start) {
+                    all_fmin.erase(all_fmin.begin());
+                    w_fmin = *all_fmin.begin();
+                }
+                colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
+                finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});
+                kmer_start++;
+                I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
+            }
+        }
+    }
+    return {colex_ranks, finimizers};
+}
+
+// TODO remove
 vector<int64_t> kmer_LCS_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){
     const uint64_t n_nodes = sbwt.number_of_subsets();
     const uint64_t k = sbwt.get_k();
@@ -149,6 +273,7 @@ vector<int64_t> kmer_LCS_streaming_search(const plain_matrix_sbwt_t& sbwt, const
     return colex;
 }
 
+// TODO remove
 vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
     //vector<int64_t> colex_ranks = sbwt.streaming_search(query);
     vector<int64_t> colex_ranks = kmer_LCS_streaming_search(sbwt, LCS, query);
@@ -157,10 +282,10 @@ vector<optional<int64_t>> get_kmer_colex_ranks(const plain_matrix_sbwt_t& sbwt, 
     for(int64_t x : colex_ranks){
         answers.push_back(x == -1 ? optional<int64_t>() : optional<int64_t>(x));
     }
-    
     return answers;
 }
 
+// TODO remove
 // Returns for each endpoint in the query the length of the shortest unique match (if exists)
 // ending there, and the colex of that match
 pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_lengths_and_colex_ranks(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& query){
@@ -233,6 +358,7 @@ pair<vector<optional<int64_t>>, vector<optional<int64_t>>> get_shortest_unique_l
     return {shortest_unique_lengths, shortest_unique_colex_ranks};
 }
 
+// TODO remove
 int64_t pick_finimizer(int64_t kmer_end, int64_t k, const vector<optional<int64_t>>& shortest_unique_lengths, const vector<optional<int64_t>>& shortest_unique_colex_ranks){
     if(kmer_end < k-1) throw std::runtime_error("bug: end < k-1");
 
