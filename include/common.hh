@@ -15,10 +15,13 @@
 #include <filesystem>
 #include <cstdio>
 #include <optional>
+//#include <queue>
+#include <deque>
 
 #include "sbwt/throwing_streams.hh"
 #include "PackedStrings.hh"
 #include "SeqIO.hh"
+
 
 pair<int64_t,int64_t> update_sbwt_interval(const int64_t C_char, const pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs){
     if(I.first == -1) return I;
@@ -133,12 +136,12 @@ int64_t lookup_from_finimizer_dictionary(int64_t finimizer_colex, const sdsl::ra
 // If a kmer exists, it returns:
 // kmers colex rank
 // finimizer end, finimizer colex rank
-pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rarest_fmin_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ //const sdsl::bit_vector** DNA_bitvectors, writer_t& writer
+pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rarest_fmin_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ 
+    //cout << "rarest fmin stremaing search" << endl;
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
-    int64_t freq;
-    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    deque<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
     const int64_t str_len = input.size();
     tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len+1}; // {freq, len, I start, end}
 
@@ -146,7 +149,7 @@ pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rare
     vector<optional<int64_t>> colex_ranks(str_len, optional<int64_t>());
     vector<optional< pair<int64_t, int64_t>>> finimizers(str_len, optional<pair<int64_t, int64_t>>());
 
-
+    int64_t freq;
     int64_t count = 0;
     int64_t start = 0;
     int64_t end;
@@ -206,15 +209,25 @@ pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rare
                     freq = (I.second - I.first + 1);
                     I_start = I.first;
                 }
-                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
-                all_fmin.insert(curr_substr);
+                if (w_fmin > curr_substr) {
+                    all_fmin.clear();
+                    w_fmin = curr_substr;
+                } else if (all_fmin.back() > curr_substr) {
+                    all_fmin.clear();
+                    all_fmin.push_back(w_fmin);
+                }
+                all_fmin.push_back(curr_substr);
+
             }
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
                 while ((get<3>(w_fmin)-get<1>(w_fmin) +1) < kmer_start) {
-                    all_fmin.erase(all_fmin.begin());
-                    w_fmin = *all_fmin.begin();
+                    //all_fmin.erase(all_fmin.begin());
+                    //w_fmin = *all_fmin.begin();
+                    all_fmin.pop_front();
+                    w_fmin = all_fmin.front();
+                   
                 }
                 colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
                 finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});

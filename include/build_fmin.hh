@@ -35,8 +35,6 @@ using namespace std;
 using namespace sbwt;
 
 
-
-
 std::vector<std::string> get_available_variants_fmin(){
     // This currently works only with the plain matrix representation
     return {"plain-matrix"};//, "rrr-matrix", "mef-matrix", "plain-split", "rrr-split", "mef-split", "plain-concat", "mef-concat", "plain-subsetwt", "rrr-subsetwt"};
@@ -167,7 +165,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
     int64_t freq;
-    set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    deque<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
     const int64_t str_len = input.size();
     tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {k+2,n_nodes,n_nodes,str_len}; // {len, freq, I start, start}
     set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
@@ -204,8 +202,15 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
                 }
-                if (w_fmin > curr_substr) {w_fmin = curr_substr;}
-                all_fmin.insert(curr_substr);
+                if (w_fmin > curr_substr) {
+                    all_fmin.clear();
+                    w_fmin = curr_substr;
+                } else if (all_fmin.back() > curr_substr) {
+                    all_fmin.clear();
+                    all_fmin.push_back(w_fmin);
+                }
+                all_fmin.push_back(curr_substr);
+
             }
         }
         if (end >= k -1 ){
@@ -220,12 +225,12 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
             kmer++;
             // Check if the current minimizer is still in this window
             while (get<3>(w_fmin)- get<0>(w_fmin)+1 < kmer) { // start
-                all_fmin.erase(all_fmin.begin());
+                all_fmin.pop_front();
                 if (all_fmin.empty()){
                     w_fmin={k+1,n_nodes,n_nodes,kmer+k};//str_len+1}; // {len, freq, I start, end}
                 }
                 else{ 
-                    w_fmin = *all_fmin.begin();
+                    w_fmin = all_fmin.front();
                 }
             }
         }
