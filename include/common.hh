@@ -94,7 +94,7 @@ optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, 
     optional<pair<int64_t, int64_t>> best = nullopt;
     int64_t p;
     for(p = finimizer_end; p < kmer_end; p++){
-        // We're not checking the last position because we would extend
+        // We're not checking the last position here because we would extend
         // after the k-mer end.
         if (Ustart[colex]){
             best = {p, colex};  
@@ -111,15 +111,6 @@ optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, 
 
 // Returns the end point (inclusice) of the first k-mer in the concatenation of the unitigs
 int64_t lookup_from_branch_dictionary(int64_t kmer_colex, int64_t k, const sdsl::rank_support_v5<>& Ustart_rs, const PackedStrings& unitigs){
-    int64_t unitig_rank = Ustart_rs.rank(kmer_colex);
-    assert(unitig_rank < unitigs.ends.size());
-    int64_t global_unitig_start = 0;
-    if(unitig_rank > 0) global_unitig_start = unitigs.ends[unitig_rank-1];
-    return global_unitig_start + k - 1;
-}
-
-// Returns the end point (inclusice) of the first k-mer in the concatenation of the unitigs
-int64_t lookup_from_branch_dictionary_Ustart(int64_t kmer_colex, int64_t k, const sdsl::rank_support_v5<>& Ustart_rs, const PackedStrings& unitigs){
     int64_t unitig_rank = Ustart_rs.rank(kmer_colex);
     assert(unitig_rank < unitigs.ends.size());
     int64_t global_unitig_start = 0;
@@ -212,12 +203,13 @@ pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rare
                 if (w_fmin > curr_substr) {
                     all_fmin.clear();
                     w_fmin = curr_substr;
-                } else if (all_fmin.back() > curr_substr) {
-                    all_fmin.clear();
+                } else{
+                    while (all_fmin.back() > curr_substr) {
+                        all_fmin.pop_back();
+                    }
                     all_fmin.push_back(w_fmin);
                 }
                 all_fmin.push_back(curr_substr);
-
             }
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
