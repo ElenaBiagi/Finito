@@ -207,7 +207,6 @@ pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rare
                     while (all_fmin.back() > curr_substr) {
                         all_fmin.pop_back();
                     }
-                    all_fmin.push_back(w_fmin);
                 }
                 all_fmin.push_back(curr_substr);
             }

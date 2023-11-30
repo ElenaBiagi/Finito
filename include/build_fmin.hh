@@ -209,7 +209,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                     while (all_fmin.back() > curr_substr) {
                         all_fmin.pop_back();
                     }
-                    all_fmin.push_back(w_fmin);
                 }
                 all_fmin.push_back(curr_substr);
 
