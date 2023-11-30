@@ -189,7 +189,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
             I = sbwt.update_sbwt_interval(&c, 1, I);
             freq = (I.second - I.first + 1);
             I_start = I.first;
-
+            
             if (freq <= t){ // 1. rarest
                 while (freq <= t){ // 2. shortest
                 curr_substr = {end - start + 1,freq, I_start, end};
@@ -211,7 +211,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                     }
                 }
                 all_fmin.push_back(curr_substr);
-
+ 
             }
         }
         if (end >= k -1 ){

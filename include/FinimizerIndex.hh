@@ -140,19 +140,11 @@ public:
 
 
         //Find kmers and Finimizers together
-        pair<vector<optional<int64_t>>,vector< optional< pair<int64_t, int64_t>> >> colex_finimizers = rarest_fmin_streaming_search(sbwt, *LCS, query);
-        vector<optional<int64_t>> kmer_colex_ranks = colex_finimizers.first;
-        vector<optional< pair<int64_t, int64_t>>> finimizers_ends_colex = colex_finimizers.second;
-        
+        tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vector<optional< pair<int64_t, int64_t> >>>colex_finimizers = rarest_fmin_streaming_search(sbwt, *LCS, query, Ustart);
+        vector<optional<int64_t>> kmer_colex_ranks = get<0>(colex_finimizers);
+        vector<optional< pair<int64_t, int64_t>>> finimizers_ends_colex = get<1>(colex_finimizers);
+        vector<optional< pair<int64_t, int64_t>>> rightmost_Ustart = get<2>(colex_finimizers);
 
-    /*  // Reverse Complement
-        string rc_query = sbwt::get_rc(query);
-        cout << "before rc" << endl;
-        pair<vector<optional<int64_t>>,vector< optional< pair<int64_t, int64_t>> >> rc_colex_finimizers = rarest_fmin_streaming_search(sbwt, *LCS, rc_query);
-        vector<optional<int64_t>> rc_kmer_colex_ranks = rc_colex_finimizers.first;
-        vector<optional< pair<int64_t, int64_t>>> rc_finimizers_ends_colex = rc_colex_finimizers.second;
-        cout << "after rc" << endl;
-  */
         for(int64_t kmer_end = k-1; kmer_end < query_len; kmer_end++) {
 
             if(kmer_colex_ranks[kmer_end].has_value()){
@@ -161,14 +153,14 @@ public:
                 int64_t finimizer_end = finimizers_ends_colex[kmer_end].value().first;
                 
                 //cout << "Finimizer ends at: " << finimizer_end << endl; //<< " with len " << shortest_unique_lengths[finimizer_end].value() << endl;
-                optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_Ustart(query, kmer_end, finimizer_end, finimizers_ends_colex, sbwt, Ustart);
-
+                //optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_Ustart(query, kmer_end, finimizer_end, finimizers_ends_colex, sbwt, Ustart);
+                optional<pair<int64_t, int64_t>> rightmost_branch_end = rightmost_Ustart[kmer_end];
                 if(rightmost_branch_end.has_value()) {
                     // Look up from the branch dictionary
                     int64_t p = rightmost_branch_end.value().first;
                     int64_t colex = rightmost_branch_end.value().second; 
                     // Get the global off set of the end of the k-mer
-                    global_kmer_end = lookup_from_branch_dictionary_Ustart(colex, k, Ustart_rs, unitigs);
+                    global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
                 } else {
                     //Look up from Finimizer dictionary
@@ -184,37 +176,7 @@ public:
                 if ((kmer_end + 1)< query.size()){
                     walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k);
                 }
-                // TODO check reverse complement
-            /* } else if (rc_kmer_colex_ranks[query_len - kmer_end + k - 2].has_value()){
-                //cout << "checking reverse complement" << endl;
-                int64_t global_kmer_end;
-                int64_t rc_kmer_end = query_len - kmer_end + k - 2;
-                int64_t finimizer_end = rc_finimizers_ends_colex[rc_kmer_end].value().first;
-                //cout << "Finimizer ends at: " << finimizer_end << " with len " << shortest_unique_lengths[finimizer_end].value() << endl;
-                optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_Ustart(rc_query, rc_kmer_end, finimizer_end, rc_finimizers_ends_colex, sbwt, Ustart);
-
-                if(rightmost_branch_end.has_value()) {
-                    // Look up from the branch dictionary
-                    int64_t p = rightmost_branch_end.value().first;
-                    int64_t colex = rightmost_branch_end.value().second; 
-                    // Get the global off set of the end of the k-mer
-                    global_kmer_end = lookup_from_branch_dictionary_Ustart(colex, k, Ustart_rs, unitigs);
-                    global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
-                } else {
-                    //Look up from Finimizer dictionary
-                    int64_t p = finimizer_end;
-                    //int64_t colex = shortest_unique_colex_ranks[p].value();
-                    int64_t colex = finimizers_ends_colex[kmer_end].value().second;
-
-                    global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
-                    global_kmer_end += rc_kmer_end - p; // Shift to the right place in the unitig
-                }
-                // A kmer has been found 
-                add_to_query_result(global_kmer_end, answer);
-                if ((kmer_end + 1)< rc_query.size()){
-                    walk_in_unitigs(rc_query, unitigs, global_kmer_end, answer, rc_kmer_end, k);
-                    //cout << "Back to the salt mines" << endl;
-                } */
+                
             } else { 
                 answer.local_offsets.push_back({-1, -1});
             } 

@@ -15,7 +15,6 @@
 #include <filesystem>
 #include <cstdio>
 #include <optional>
-//#include <queue>
 #include <deque>
 
 #include "sbwt/throwing_streams.hh"
@@ -56,6 +55,7 @@ char get_char_idx(char c){
     }
 }
 
+//TODO remove
 // Inclusive ends. Retuns (end, colex of end)
 // This function assumes that the k-mer we are looking for exists in the sbwt
 optional<pair<int64_t, int64_t>> get_rightmost_Ustart_old(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<int64_t>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){
@@ -82,6 +82,8 @@ optional<pair<int64_t, int64_t>> get_rightmost_Ustart_old(const std::string& que
         }
     return best;
 }
+
+//TODO remove
 // Inclusive ends. Retuns (end, colex of end)
 // This function assumes that the k-mer we are looking for exists in the sbwt
 optional<pair<int64_t, int64_t>> get_rightmost_Ustart(const std::string& query, int64_t kmer_end, int64_t finimizer_end, const vector<optional<pair<int64_t, int64_t>>>& finimizer_end_colex, const plain_matrix_sbwt_t& sbwt, const sdsl::bit_vector& Ustart){
@@ -127,8 +129,7 @@ int64_t lookup_from_finimizer_dictionary(int64_t finimizer_colex, const sdsl::ra
 // If a kmer exists, it returns:
 // kmers colex rank
 // finimizer end, finimizer colex rank
-pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rarest_fmin_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input){ 
-    //cout << "rarest fmin stremaing search" << endl;
+tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vector<optional< pair<int64_t, int64_t> > >> rarest_fmin_streaming_search(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, const string& input, const sdsl::bit_vector& Ustart){ 
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
@@ -149,6 +150,9 @@ pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rare
     pair<int64_t, int64_t> I_new, I_kmer_new;
     int64_t I_start;
     tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
+    pair<int64_t, int64_t> best_Ustart = {-1,-1};
+
+    vector<optional<pair<int64_t, int64_t>>> best(str_len, optional<pair<int64_t, int64_t>>());
     
     // the idea is to start from the first pos which is i and move until finding something of ok freq
     // then drop the first char keeping track of which char you are starting from
@@ -192,13 +196,13 @@ pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rare
             // (2b) Finimizer found
             if (freq ==1){ // 1. rarest
                 while (freq == 1) { // 2. shortest
+                    I_start = I.first;
                     curr_substr = {freq, end - start + 1, I_start, end};
                     // 2. drop the first char
                     // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                     start ++;
                     I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                     freq = (I.second - I.first + 1);
-                    I_start = I.first;
                 }
                 if (w_fmin > curr_substr) {
                     all_fmin.clear();
@@ -210,24 +214,31 @@ pair<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >> rare
                 }
                 all_fmin.push_back(curr_substr);
             }
+            //cout << I_start << endl;
+            //for (auto x:Ustart){ cout << x << ",";}
+            //cout << endl;
+            if (Ustart[I_kmer.first]){
+                best_Ustart = {end, I_kmer.first};  
+            }
+
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
                 count++;
                 while ((get<3>(w_fmin)-get<1>(w_fmin) +1) < kmer_start) {
-                    //all_fmin.erase(all_fmin.begin());
-                    //w_fmin = *all_fmin.begin();
                     all_fmin.pop_front();
                     w_fmin = all_fmin.front();
-                   
                 }
                 colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
                 finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});
+                if (best_Ustart.first >= get<3>(w_fmin)){
+                    best[kmer_start+k-1] = optional<pair<int64_t, int64_t>>(best_Ustart);
+                }
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
         }
     }
-    return {colex_ranks, finimizers};
+    return tie(colex_ranks, finimizers, best);
 }
 
 // TODO remove
