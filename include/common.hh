@@ -20,6 +20,7 @@
 #include "sbwt/throwing_streams.hh"
 #include "PackedStrings.hh"
 #include "SeqIO.hh"
+#include "BoundedDeque.hh"
 
 
 pair<int64_t,int64_t> update_sbwt_interval(const int64_t C_char, const pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs){
@@ -77,7 +78,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
     const vector<int64_t>& C = sbwt.get_C_array();
-    deque<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+    BoundedDeque<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin(input.size());
     const int64_t str_len = input.size();
     tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len+1}; // {freq, len, I start, end}
 
