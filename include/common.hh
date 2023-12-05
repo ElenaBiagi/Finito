@@ -37,6 +37,7 @@ pair<int64_t,int64_t> update_sbwt_interval(const int64_t C_char, const pair<int6
 
 pair<int64_t,int64_t> drop_first_char(const int64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const int64_t n_nodes){
     if(I.first == -1) return I;
+    if (new_len<=0){return {0, n_nodes - 1};}
     pair<int64_t,int64_t> new_I = I;
     //Check top and bottom w the LCS
     while (new_I.first > 0 && LCS[new_I.first] >= new_len ){new_I.first --;}
@@ -82,7 +83,6 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
     const int64_t str_len = input.size();
     tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len+1}; // {freq, len, I start, end}
 
-    //vector<int64_t> found_kmers(str_len, -1);
     vector<optional<int64_t>> colex_ranks(str_len, optional<int64_t>());
     vector<optional< pair<int64_t, int64_t>>> finimizers(str_len, optional<pair<int64_t, int64_t>>());
 
@@ -117,6 +117,11 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
             // TODO We already know that no kmer will be found
             while(I_new.first == -1){
                 kmer_start = ++start;
+                if (start>end)[[unlikely]]{
+                    I_new = {0, n_nodes - 1};
+                    I_kmer = I_new;
+                    break;
+                }
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
                 I_new = sbwt.update_sbwt_interval(&c, 1, I);// I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
                 I_kmer = I_new;
@@ -175,6 +180,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                 }
                 colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
                 finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});
+                //cout << "FOUND KMER = " <<input.substr(kmer_start, k) << " colex = " << I_kmer.first << endl;
                 if (best_Ustart.first >= get<3>(w_fmin)){
                     best[kmer_start+k-1] = optional<pair<int64_t, int64_t>>(best_Ustart);
                 }

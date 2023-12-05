@@ -14,6 +14,8 @@
 string temp_dir = "tests_temp";
 vector<string> paper_example_unitigs = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT"};
 //                                          1           2           0
+//vector<string> paper_example_queries = {"TAAA"};
+
 vector<string> paper_example_queries = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT", "TAGGATTTTTTAAGTCTA"};
 
 using namespace std;
@@ -154,8 +156,8 @@ void test_reverse_complement_branch(){
     // Permuted order:            1       2        0
     //string query = "CCGGT";
     //vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0}};
-    string query = "TCGGTGCCGTC";
-    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0},{-1,-1},{-1,-1}, {-1,-1}, {0,0}, {0,1}, {0,2}};
+    string query = "TCGGTGCCGTCA";
+    vector<pair<int64_t, int64_t>> true_local_offsets = {{1,0}, {2,0},{-1,-1},{-1,-1}, {-1,-1}, {0,0}, {0,1}, {0,2}, {-1,-1}};
 
     unique_ptr<FinimizerIndex> index = build_index(unitigs, 4);
     FinimizerIndex::QueryResult res = index->search(query);
