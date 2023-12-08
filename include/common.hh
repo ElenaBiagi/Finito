@@ -82,7 +82,6 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
     BoundedDeque<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin(input.size());
     const int64_t str_len = input.size();
     tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len+1}; // {freq, len, I start, end}
-
     vector<optional<int64_t>> colex_ranks(str_len, optional<int64_t>());
     vector<optional< pair<int64_t, int64_t>>> finimizers(str_len, optional<pair<int64_t, int64_t>>());
 
@@ -164,15 +163,13 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                 }
                 all_fmin.push_back(curr_substr);
             }
-            //cout << I_start << endl;
-            //for (auto x:Ustart){ cout << x << ",";}
-            //cout << endl;
-            if (Ustart[I_kmer.first]){
-                best_Ustart = {end, I_kmer.first};  
-            }
+
+            // Ustart
+            if (I_kmer.first == I_kmer.second && Ustart[I_kmer.first]==1){ best_Ustart = {end, I_kmer.first};}
 
             // Check if the kmer is found
             if (end - kmer_start + 1 == k){
+            
                 count++;
                 while ((get<3>(w_fmin)-get<1>(w_fmin) +1) < kmer_start) {
                     all_fmin.pop_front();
@@ -180,10 +177,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                 }
                 colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
                 finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});
-                //cout << "FOUND KMER = " <<input.substr(kmer_start, k) << " colex = " << I_kmer.first << endl;
-                if (best_Ustart.first >= get<3>(w_fmin)){
-                    best[kmer_start+k-1] = optional<pair<int64_t, int64_t>>(best_Ustart);
-                }
+                if (best_Ustart.first >= get<3>(w_fmin)){ best[kmer_start+k-1] = optional<pair<int64_t, int64_t>>(best_Ustart);}
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
