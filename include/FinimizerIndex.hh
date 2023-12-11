@@ -324,7 +324,7 @@ public:
         const int64_t k = sbwt->get_k();
         const vector<int64_t>& C = sbwt->get_C_array();
         int64_t freq;
-        set<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin;
+        BoundedDeque<tuple<int64_t, int64_t, int64_t, int64_t>> all_fmin(seq.size());
         const int64_t str_len = seq.size();
         tuple<int64_t, int64_t, int64_t, int64_t> w_fmin = {n_nodes,k+1,n_nodes,str_len}; // {freq, len, I start, start}
         set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
@@ -366,10 +366,12 @@ public:
                     I_start = I.first;
                     }
                     if (w_fmin > curr_substr) {
+                        all_fmin.clear();
                         w_fmin = curr_substr;
-                        all_fmin.clear(); // this is the best finimizer of the current kmer so far
+                    } else{
+                        while (all_fmin.back() > curr_substr) {all_fmin.pop_back();}
                     }
-                    all_fmin.insert(curr_substr);//({start, end - start + 1, freq, static_cast<int64_t>(I.first)});
+                    all_fmin.push_back(curr_substr);
                 }
             }
             if (end >= k -1 ){
@@ -388,8 +390,8 @@ public:
                 kmer++;
                 // Check if the current minimizer is still in this window
                 while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
-                    all_fmin.erase(all_fmin.begin());
-                    w_fmin = (all_fmin.empty()) ? tuple<int64_t, int64_t, int64_t, int64_t> {n_nodes,k+1,kmer+1,kmer+k} : *all_fmin.begin();
+                    all_fmin.pop_front();
+                    w_fmin = (all_fmin.size()==0) ? tuple<int64_t, int64_t, int64_t, int64_t> {n_nodes,k+1,kmer+1,kmer+k} : all_fmin.front();
                 }
             }
         }
