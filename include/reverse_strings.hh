@@ -30,7 +30,7 @@
 #include "lcs_basic_parallel_algorithm.hpp"
 #include "common.hh"
 #include "sbwt/SeqIO.hh"
-//#include "lcs_basic_algorithm.hpp"
+// todo check what is not needed
 
 using namespace std;
 using namespace sbwt;
@@ -72,7 +72,6 @@ void write_string_fasta(const vector<string>& strings, string& out_prefix){ // w
         out.write(&newline, 1);
 
     }
-    //out.write(static_cast<const char*>(p.second.c_str()), p.second.length());
 }
 
 
@@ -110,44 +109,15 @@ void rev_unitigs(const vector<string>& infiles, const string& out_file){
 
     return;
 
-    /* //for(int64_t i = 0; i < infiles.size(); i++){}
-    vector<string> new_files;
-    string temp_dir = get_current_dir_name();
-    //SeqIO::FileFormat fileformat = check_that_all_files_have_the_same_format(infiles);
-    //sbwt::write_log("Creating a reverse-complemented version of each input file to " + temp_dir, sbwt::LogLevel::MAJOR);
-    //bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
-        //if(gzip_input){
-        if(fileformat.gzipped){
-            new_files = sbwt::SeqIO::create_reverse_complement_files_2<
-                sbwt::SeqIO::Reader<sbwt::Buffered_ifstream<sbwt::zstr::ifstream>>,
-                sbwt::SeqIO::Writer<sbwt::Buffered_ofstream<sbwt::zstr::ofstream>>>(infiles);
-        } else{
-            new_files = sbwt::SeqIO::create_reverse_complement_files_2<
-                sbwt::SeqIO::Reader<sbwt::Buffered_ifstream<std::ifstream>>,
-                sbwt::SeqIO::Writer<sbwt::Buffered_ofstream<std::ofstream>>>(infiles);
-        //}
-        //for(string f : new_files) infiles.push_back(f);
-
-
-    return new_files; 
-    */
 }
 
 int reverse_strings(int argc, char** argv) {
-
-    //int64_t micros_start = cur_time_micros();
 
     set_log_level(LogLevel::MINOR);
 
     cxxopts::Options options(argv[0], "Find all Finimizers of all input reads.");
 
-    //vector<string> types = get_available_types();
-    //string all_types_string;
-    //for (string type: types) all_types_string += " " + type;
-
     options.add_options()
-       // ("o,out-file", "Output index filename prefix.", cxxopts::value<string>())
-       // ("i,index-file", "SBWT file. This has to be a binary matrix.", cxxopts::value<string>())
 
         ("u,in-file",
             "The SPSS in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
@@ -177,28 +147,8 @@ int reverse_strings(int argc, char** argv) {
     }
     for(string file : input_files) check_readable(file);
 
-
-    //string out_prefix = "rev_" + opts["in-file"].as<string>();
     string out_file = opts["out-file"].as<string>();
-    //sbwt::get_temp_file_manager().set_dir(temp_dir);
-    // sbwt
-    /* string indexfile = opts["index-file"].as<string>();
-    check_readable(indexfile);
-    throwing_ifstream in(indexfile, ios::binary);
-    vector<string> variants = get_available_variants_fmin();
-    string variant = load_string(in.stream); // read variant type
-    if (std::find(variants.begin(), variants.end(), variant) == variants.end()) {
-       cerr << "Error loading index from file: unrecognized variant specified in the file" << endl;
-        return 1;
-    }
-
-    write_log("Loading the index variant " + variant, LogLevel::MAJOR);
-    if (variant == "plain-matrix") {
-        plain_matrix_sbwt_t sbwt;
-        sbwt.load(in.stream);
-        rev_unitigs(sbwt, input_files, out_prefix);
-    }
- */
+    
     rev_unitigs(input_files, out_file);
 
     return 0;
