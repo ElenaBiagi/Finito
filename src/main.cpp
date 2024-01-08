@@ -6,6 +6,7 @@
 #include "globals.hh"
 #include "build_fmin.hh"
 #include "search_fmin.hh"
+#include "reverse_strings.hh"
 #include "FinimizerIndex.hh"
 
 using namespace std;
@@ -43,8 +44,9 @@ int main(int argc, char** argv){
     argc--;
 
     try{
-        if(command == "build-fmin") return build_fmin(argc, argv);
-        else if(command == "search-fmin") return search_fmin(argc, argv);
+        if(command == "build-fmin") {return build_fmin(argc, argv);}
+        else if(command == "search-fmin") {return search_fmin(argc, argv);}
+        else if(command == "reverse") {return reverse_strings(argc, argv);}
         else{
             throw std::runtime_error("Invalid command: " + command);
             return 1;

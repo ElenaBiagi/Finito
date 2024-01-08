@@ -61,8 +61,7 @@ char get_char_idx(char c){
 int64_t lookup_from_branch_dictionary(int64_t kmer_colex, int64_t k, const sdsl::rank_support_v5<>& Ustart_rs, const PackedStrings& unitigs){
     int64_t unitig_rank = Ustart_rs.rank(kmer_colex);
     assert(unitig_rank < unitigs.ends.size());
-    int64_t global_unitig_start = 0;
-    if(unitig_rank > 0) global_unitig_start = unitigs.ends[unitig_rank-1];
+    int64_t global_unitig_start = (unitig_rank > 0) ? unitigs.ends[unitig_rank-1] :  0;    
     return global_unitig_start + k - 1;
 }
 
@@ -176,7 +175,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                     w_fmin = all_fmin.front();
                 }
                 colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
-                finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});
+                finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});// end , I-start(colex)
                 if (best_Ustart.first >= get<3>(w_fmin)){ best[kmer_start+k-1] = optional<pair<int64_t, int64_t>>(best_Ustart);}
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);

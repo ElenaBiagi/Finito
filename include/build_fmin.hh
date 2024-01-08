@@ -55,12 +55,14 @@ void load_v(const std::string& filename, sdsl::int_vector<>& v) {
     in.close();
 }
 
+// TODO check if it is used
 void save_bv(const std::string& filename, const sdsl::bit_vector& v) {
     std::ofstream out(filename, std::ios::binary);
     sdsl::serialize(v, out);
     out.close();
 }
 
+// TODO check if it is used
 void load_bv(const std::string& filename, sdsl::bit_vector& v) {
     std::ifstream in(filename, std::ios::binary);
     sdsl::load(v, in);
@@ -79,13 +81,15 @@ void write_fasta(const pair<string,string>& p, writer_t& out){
     out.write(&newline, 1);
 }
 
-
+// TODO check if it is used
 void write_fasta_old(const pair<string,string>& sequencePair, string& filename) {
     std::ofstream outputFile(filename + ".fa", std::ios_base::app);
     outputFile << ">" + sequencePair.first + '\n'; // Write sequence ID
     outputFile << sequencePair.second + '\n'; // Write sequence data
     outputFile.close();
 }
+
+// TODO check if it is used
 
 void write_str_v(const vector<string>& myVector, const string& filename) {
     //if (filesystem::exists(filename)) { filesystem::remove(filename);}
@@ -97,6 +101,8 @@ void write_str_v(const vector<string>& myVector, const string& filename) {
         outputFile.close();
     }
 }
+
+// Not used, but usefull for debugging
 
 void print_LCS(const string& v,const string& fname) {
     std::ofstream csv_file(fname);
@@ -110,6 +116,7 @@ void print_LCS(const string& v,const string& fname) {
     csv_file.close();
 }
 
+// TODO check if it is used
 template<typename writer_t>
 void write_csv(const tuple<string, string, string, string,string>& p, writer_t& out) {
     //assert(out.is_open());
@@ -278,18 +285,17 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
 }
 
 template<typename sbwt_t, typename reader_t>
-void run_fmin_streaming(reader_t& reader, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
+void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
 
 
     if(type == "rarest"){
         if(t != 1){
             throw std::runtime_error("t != 1 does not make sense with rarest type");
         }
-
-        FinimizerIndexBuilder builder(move(sbwt), move(LCS), reader);
+        FinimizerIndexBuilder builder(move(sbwt), move(LCS), f_reader, r_reader);
         unique_ptr<FinimizerIndex> index = builder.get_index();
         index->serialize(index_prefix);
-    } else if(type == "shortest"){
+    } /* else if(type == "shortest"){
         // Just print stats because we don't have an index for this yet
         print_shortest_finimizer_stats(*sbwt, *LCS, reader, t);
     } else if(type == "verify"){
@@ -305,33 +311,34 @@ void run_fmin_streaming(reader_t& reader, const string& index_prefix, unique_ptr
             }
         }
         print_finimizer_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), t);    
-    }
+    }*/
 
 }
 
 template<typename sbwt_t, typename reader_t>
-int64_t run_file_fmin(const string& infile, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
-    reader_t reader(infile);
+int64_t run_file_fmin(const string& f_infile, const string& r_infile, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){ // const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+    reader_t f_reader(f_infile);
+    reader_t r_reader(r_infile);
     //Assume sbwt has streaming support
-    write_log("Searching Finimizers from input file " + infile + " to index prefix " + index_prefix, LogLevel::MAJOR);
-    run_fmin_streaming<sbwt_t, reader_t>(reader, index_prefix, move(sbwt), move(LCS), t, type); // C,k,DNA_bitvectors,
+    write_log("Searching Finimizers from input file " + f_infile + " & " + r_infile + " to index prefix " + index_prefix, LogLevel::MAJOR);
+    run_fmin_streaming<sbwt_t, reader_t>(f_reader, r_reader, index_prefix, move(sbwt), move(LCS), t, type); // C,k,DNA_bitvectors,
     return 0;
 }
 
 template<typename sbwt_t>
-int64_t fmin_search(const vector<string>& infiles, const string& out_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t,const string& type){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
+int64_t fmin_search(const vector<string>& f_infiles,const vector<string>& r_infiles, const string& out_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t,const string& type){//const vector<int64_t>& C, const int64_t k,const sdsl::bit_vector** DNA_bitvectors,
 
     typedef SeqIO::Reader<Buffered_ifstream<zstr::ifstream>> in_gzip;
     typedef SeqIO::Reader<Buffered_ifstream<std::ifstream>> in_no_gzip;
 
     int64_t n_fmin = 0;
-    for(int64_t i = 0; i < infiles.size(); i++){
-        bool gzip_input = SeqIO::figure_out_file_format(infiles[i]).gzipped;
+    for(int64_t i = 0; i < f_infiles.size(); i++){
+        bool gzip_input = SeqIO::figure_out_file_format(f_infiles[i]).gzipped;
         if(gzip_input){
-            n_fmin += run_file_fmin<sbwt_t, in_gzip>(infiles[i], out_prefix, move(sbwt), move(LCS),t, type); 
+            n_fmin += run_file_fmin<sbwt_t, in_gzip>(f_infiles[i], r_infiles[i], out_prefix, move(sbwt), move(LCS),t, type); 
         }
         else {
-            n_fmin += run_file_fmin<sbwt_t, in_no_gzip>(infiles[i], out_prefix, move(sbwt), move(LCS),t, type);
+            n_fmin += run_file_fmin<sbwt_t, in_no_gzip>(f_infiles[i], r_infiles[i], out_prefix, move(sbwt), move(LCS),t, type);
         }
     }
 
@@ -354,9 +361,11 @@ int build_fmin(int argc, char** argv) {
     options.add_options()
         ("o,out-file", "Output index filename prefix.", cxxopts::value<string>())
         ("i,index-file", "SBWT file. This has to be a binary matrix.", cxxopts::value<string>())
-        ("u,in-file",
-            "The SPSS in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
+        ("f,f-file",
+            "The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
             cxxopts::value<string>())
+        ("r,r-file", "reverse complement of f-file", cxxopts::value<string>())
+
         ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
         ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
@@ -371,16 +380,29 @@ int build_fmin(int argc, char** argv) {
     }
     char t = opts["t"].as<int64_t>();
 
-    // input files
-    string in_file = opts["in-file"].as<string>();
-    vector<string> input_files;
-    bool multi_file = in_file.size() >= 4 && in_file.substr(in_file.size() - 4) == ".txt";
+    // forward unitigs
+    string f_file = opts["f-file"].as<string>();
+    vector<string> f_files;
+    //TODO remove multifiles
+    bool multi_file = f_file.size() >= 4 && f_file.substr(f_file.size() - 4) == ".txt";
     if(multi_file){
-        input_files = readlines(in_file);
+        f_files = readlines(f_file);
     } else{
-        input_files = {in_file};
+        f_files = {f_file};
     }
-    for(string file : input_files) check_readable(file);
+    for(string file : f_files) check_readable(file);
+
+    // reverse unitigs
+    string r_file = opts["r-file"].as<string>();
+    vector<string> r_files;
+    //TODO remove multifiles
+    multi_file = r_file.size() >= 4 && r_file.substr(r_file.size() - 4) == ".txt";
+    if(multi_file){
+        r_files = readlines(r_file);
+    } else{
+        r_files = {r_file};
+    }
+    for(string file : r_files) check_readable(file);
 
 
     string out_prefix = opts["out-file"].as<string>();
@@ -420,7 +442,11 @@ int build_fmin(int argc, char** argv) {
         unique_ptr<sdsl::int_vector<>> LCS = make_unique<sdsl::int_vector<>>();
         load_v(LCS_file, *LCS);
         std::cerr<< "LCS_file loaded" << std::endl;
-        fmin_search(input_files, out_prefix, move(sbwt), move(LCS), t, type);//DNA_bitvectors,
+        for (int i = 0; i < LCS->size(); ++i) {
+            cout << (*LCS)[i] << ' ';
+        }
+        cout << endl;
+        fmin_search(f_files, r_files, out_prefix, move(sbwt), move(LCS), t, type);//DNA_bitvectors,
 
     }
     return 0;
