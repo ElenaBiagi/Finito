@@ -442,10 +442,6 @@ int build_fmin(int argc, char** argv) {
         unique_ptr<sdsl::int_vector<>> LCS = make_unique<sdsl::int_vector<>>();
         load_v(LCS_file, *LCS);
         std::cerr<< "LCS_file loaded" << std::endl;
-        for (int i = 0; i < LCS->size(); ++i) {
-            cout << (*LCS)[i] << ' ';
-        }
-        cout << endl;
         fmin_search(f_files, r_files, out_prefix, move(sbwt), move(LCS), t, type);//DNA_bitvectors,
 
     }
