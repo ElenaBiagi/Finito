@@ -199,7 +199,7 @@ public:
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
                     // Find unitig rank
                     global_unitig_rank = std::upper_bound(unitigs.ends.begin(), unitigs.ends.end(), global_kmer_end-k+1) - unitigs.ends.begin();
-                    colex = Ustart_ss(global_unitig_rank); // todo remove +1
+                    colex = Ustart_ss(global_unitig_rank +1); // todo remove +1
                     cerr << colex << " ";
                     
                     // A kmer has been found
