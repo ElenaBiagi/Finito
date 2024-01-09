@@ -199,19 +199,19 @@ public:
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
                     // Find unitig rank
                     global_unitig_rank = std::upper_bound(unitigs.ends.begin(), unitigs.ends.end(), global_kmer_end-k+1) - unitigs.ends.begin();
-                    colex = Ustart_ss(global_unitig_rank +1); // todo remove +1
+                    colex = Ustart_ss(global_unitig_rank +1);
                     cerr << colex << " ";
                     
                     // A kmer has been found
                 // Check if it is found in a rc unitig
-                rc = (Rstart[colex] == 1) ? true : false;
+                rc = Rstart[colex];
                 cerr << rc << " ";
                 const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
 
                 assert(rc_unitig_rank < unitigs.ends.size());
             
                 unitig_rank = (rc==1)? Rpermutation[rc_unitig_rank] : (global_unitig_rank - rc_unitig_rank);
-                cerr << unitig_rank << " "  << global_kmer_end << " " << global_unitig_rank << " = ";
+                if (!rc)cerr << unitig_rank << " "  << rc_unitig_rank << " " << global_unitig_rank << " = ";
 
                 add_to_query_result(unitig_rank, rc, global_kmer_end, answer);
                 if ((kmer_end + 1)< query.size()){
@@ -453,7 +453,7 @@ public:
                         std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
                     }
                     global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
-                    // TODO fix this for rc and forward unitigs
+                    // TODO we could add a bit to say if the unitig is rc or forward
 
                 }
                 // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
