@@ -34,7 +34,6 @@ class PackedStrings{
 
     // Concatenates the strings according to the given permutation
     PackedStrings(const vector<string>& strings, const vector<int64_t>& permutation){
-        // strings are already sorted in the commented version
         assert(strings.size() == permutation.size());
         int64_t total_length = 0;
         for(const string& S : strings){
@@ -46,8 +45,6 @@ class PackedStrings{
         
         int64_t ends_idx = 0; // Position in ends vector
         int64_t end = 0; // End of current unitig
-        //for(int64_t i = 0; i < strings.size();){
-            //const string& S = strings[i];
         int64_t unitigs_count = strings.size()/2;
         int64_t i = 0; // Position in concatenation
         for(int64_t string_idx : permutation){
@@ -62,7 +59,6 @@ class PackedStrings{
                     default: throw std::runtime_error("Invalid character: " + c);
                 }
             }
-            // store end points only of the forward unitigs
             end += S.size();
             ends[ends_idx++] = end;
         }
@@ -115,11 +111,12 @@ class PackedStrings{
 
 // Returns packed unitigs + the Ustart bit vector + Rstart bit vector
 template <typename reader_t>
-tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > permute_unitigs(const plain_matrix_sbwt_t& sbwt, reader_t& f_reader, reader_t& r_reader, const string& index_prefix){
+tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > permute_unitigs(const plain_matrix_sbwt_t& sbwt, reader_t& f_reader, reader_t& r_reader){
     int64_t k = sbwt.get_k();
     vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> first_kmers; // pairs (kmer, unitig id)
     vector<string> f_unitigs;
 
+    // forward unitigs
     int64_t unitig_id = 0;
     while(true){
         int64_t len = f_reader.get_next_read_to_buffer();
@@ -130,7 +127,7 @@ tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > pe
 
         unitig_id++;
     }
-
+    // permutation for sorting forward unitigs
     std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
     vector<int64_t> f_permutation;
     for(auto& P : first_kmers){
@@ -185,7 +182,7 @@ tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > pe
 
     sdsl::bit_vector Ustart(sbwt.number_of_subsets(), 0);
     sdsl::bit_vector Rstart(sbwt.number_of_subsets(), 0);
-    for(int64_t i = 0; i < sorted_r_unitigs.size(); i++){
+    for(int64_t i = 0; i < sorted_r_unitigs.size(); i++){ // sorted_r_unitigs only contains rc_unitigs, sorted_f_unitigs = sorted_f + sorted_r
         int64_t f_colex = sbwt.search(sorted_f_unitigs[i].substr(0, k));
         int64_t r_colex = sbwt.search(sorted_r_unitigs[i].substr(0, k));
         if(f_colex == -1) cout << "Error: kmer " + sorted_f_unitigs[i].substr(0, k) + " in forward unitigs but not found in SBWT" << endl;
