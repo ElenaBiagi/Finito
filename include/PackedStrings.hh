@@ -47,6 +47,7 @@ class PackedStrings{
         int64_t end = 0; // End of current unitig
         int64_t unitigs_count = strings.size()/2;
         int64_t i = 0; // Position in concatenation
+
         for(int64_t string_idx : permutation){
             const string& S = strings[string_idx];
 
@@ -63,7 +64,7 @@ class PackedStrings{
             ends[ends_idx++] = end;
         }
     }
-
+    
     // Clears the given buffer and stores string with index string_idx into it,
     // including a null-terminator. Returns the length of the stored string,
     // not counting the null.
@@ -89,22 +90,19 @@ class PackedStrings{
     }
 
     // Returns pair (unitig_id, offset_in_unitig)
-    pair<int64_t, int64_t> global_offset_to_local_offset(int64_t global_offset, int64_t unitig_rank, bool rc, int64_t k) const{
+    pair<int64_t, int64_t> global_offset_to_local_offset(int64_t global_offset, const int64_t unitig_rank, bool rc, int64_t k) const{
         assert(global_offset >= 0 && global_offset < concat.size());
         
         // Binary search the smallest index in ends that has value larger than the global offset
         // this cannot be 0
 
         int64_t ends_idx = std::upper_bound(ends.begin(), ends.end(), global_offset) - ends.begin();
-        
         int64_t global_start = (ends_idx == 0) ? 0 : ends[ends_idx-1];
         int64_t local_offset = global_offset - global_start;
         if (rc) {
             int64_t unitig_len = ends[ends_idx] - global_start;
             local_offset = unitig_len - local_offset - k;
         } 
-        cerr << ends_idx << endl;
-
         return {unitig_rank, local_offset};
     }
 };
@@ -127,11 +125,17 @@ tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > pe
 
         unitig_id++;
     }
+
     // permutation for sorting forward unitigs
     std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
     vector<int64_t> f_permutation;
+    vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> sorted_first_kmers; // pairs (kmer, unitig id)    
+
+    unitig_id = 0;
     for(auto& P : first_kmers){
         f_permutation.push_back(P.second);
+        // create the correct first_kmers based on the sorted f unitigs
+        sorted_first_kmers.push_back({P.first,unitig_id++});
     }
 
     // rc unitigs
@@ -157,25 +161,26 @@ tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > pe
     for (int u=0; u < sorted_r_unitigs.size(); u++){
         r_first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(sorted_r_unitigs[u].c_str(), k), u});
         // Add rc first kmers
-        first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(sorted_r_unitigs[u].c_str(), k), u + f_unitigs.size()});
+        sorted_first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(sorted_r_unitigs[u].c_str(), k), u + f_unitigs.size()});
     }
 
     // Sort rc unitigs first kmers to get r_permutation
     std::sort(r_first_kmers.begin(), r_first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
     sdsl::int_vector<> r_permutation(r_unitigs.size(), 0, 64 - __builtin_clzll(r_unitigs.size()));
-
-    //for(auto& P : r_first_kmers){ r_permutation.push_back(P.second);}
+    
     for(int64_t r = 0; r < r_first_kmers.size();r++){
         r_permutation[r]=r_first_kmers[r].second;
     }
+
     // Concatenate f and r unitigs vectors
     sorted_f_unitigs.insert(sorted_f_unitigs.end(), sorted_r_unitigs.begin(), sorted_r_unitigs.end());
-    // sort all unitigs together
-    std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
-    // We don't need this permutation
+    // get a permutation to sort all unitigs together
+    
+    std::sort(sorted_first_kmers.begin(), sorted_first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
+   
     vector<int64_t> permutation;
     vector <string> sorted_unitigs;
-    for(auto& P : first_kmers){
+    for(auto& P : sorted_first_kmers){
         permutation.push_back(P.second);
         //sorted_unitigs.push_back(sorted_f_unitigs[P.second]);
     }
