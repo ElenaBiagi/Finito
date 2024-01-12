@@ -4,9 +4,9 @@ use rayon::prelude::*;
 use jseqio::seq_db::SeqDB;
 use std::sync::Arc;
 
-pub struct MinimizerIndex{
+pub struct MinimizerIndex<KmerType : BitPackedNucleotides>{
     seq_storage: Arc<jseqio::seq_db::SeqDB>,
-    mphf: boomphf::Mphf<Kmer>, // Minimal perfect hash function
+    mphf: boomphf::Mphf<KmerType>, // Minimal perfect hash function
     locations: Vec<(u32, u32)>,
     bucket_starts: Vec<usize>,
     k: usize, // k-mer length
@@ -83,37 +83,46 @@ fn get_minimizer_positions_with_return(seq: &[u8], k: usize, m: usize) -> Vec<us
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Debug)]
-struct Kmer{
-    data: u64
+pub struct Kmer<const SIZE_IN_U64: usize>{
+    data: [u64; SIZE_IN_U64]
+}
+
+pub trait BitPackedNucleotides : Copy + Clone + PartialEq + Eq + Ord + PartialOrd + std::hash::Hash + std::fmt::Debug + Send + Sync{
+    fn from_ascii(ascii: &[u8]) -> Result<Self, KmerEncodingError>;
 }
 
 #[derive(Debug)]
-enum KmerEncodingError{
+pub enum KmerEncodingError{
     InvalidNucleotide(char), // contains the offending char
     TooLong(usize), // Contains the length of the k-mer which was too long
 }
 
-impl Kmer{
+fn ceil_div(a: usize, b: usize) -> usize{
+    (a + b - 1) / b
+}
+
+impl<const SIZE_IN_U64: usize> BitPackedNucleotides for Kmer<SIZE_IN_U64>{
     fn from_ascii(ascii: &[u8]) -> Result<Self, KmerEncodingError>{
-        if ascii.len() > 32{
+        if ceil_div(ascii.len()*2, 64) > SIZE_IN_U64 { // Need len*2 bits = ceil(len*2/64) words of length 64
             return Err(KmerEncodingError::TooLong(ascii.len()));
         }
-        let mut data = 0_u64;
-        for c in ascii.iter() {
-            data <<= 2;
-            data |= match *c{
-                b'A' => 0,
-                b'C' => 1,
-                b'G' => 2,
-                b'T' => 3,
+        let mut data = [0u64; SIZE_IN_U64];
+        for (i, c) in ascii.iter().enumerate() {
+            let word_idx = i / 32; // 32 nucleotides per word
+            let word_offset = (i % 32) * 2;
+            data[word_idx] |= match *c{
+                b'A' => 0_u64,
+                b'C' => 1_u64,
+                b'G' => 2_u64,
+                b'T' => 3_u64,
                 _ => {return Err(KmerEncodingError::InvalidNucleotide(*c as char))}
-            };
+            } << word_offset;
         }
         Ok(Self{data})
     }
 }
 
-impl MinimizerIndex{
+impl<KmerType: BitPackedNucleotides> MinimizerIndex<KmerType>{
 
     pub fn get_k(&self) -> usize{
         self.k
@@ -195,7 +204,7 @@ impl MinimizerIndex{
         }
 
         // Mphf
-        let mphf: boomphf::Mphf<Kmer> = bincode::deserialize_from(&mut reader).unwrap();
+        let mphf: boomphf::Mphf<KmerType> = bincode::deserialize_from(&mut reader).unwrap();
 
         // Read sequence storage
         let fasta_reader = jseqio::reader::StaticFastXReader::new(&mut reader).unwrap();
@@ -222,7 +231,7 @@ impl MinimizerIndex{
         let minimizer = &kmer[min_pos .. min_pos + self.m];
 
         let mut ans: Vec<(usize,usize)> = vec![];
-        let minmer = match Kmer::from_ascii(minimizer){
+        let minmer = match KmerType::from_ascii(minimizer){
             Err(KmerEncodingError::InvalidNucleotide(c)) => {return vec![]}, // No matches
             Err(KmerEncodingError::TooLong(len)) => {panic!("Sequence length {} shorter than k", len)},
             Ok(x) => x
@@ -289,7 +298,7 @@ mod build{
     }
 
     // L must be sorted
-    fn get_bucket_sizes(L: &Vec::<(Kmer, u32, u32)>, h: &boomphf::Mphf<Kmer>, n_minimizers: usize) -> Vec<usize>{
+    fn get_bucket_sizes<KmerType : BitPackedNucleotides>(L: &Vec::<(KmerType, u32, u32)>, h: &boomphf::Mphf<KmerType>, n_minimizers: usize) -> Vec<usize>{
         let mut bucket_sizes: Vec::<usize> = vec![0; n_minimizers]; // Bucket sizes in left-to-right order of buckets
 
         // Find out the bucket sizes
@@ -316,7 +325,7 @@ mod build{
     }
 
     // L must be sorted
-    fn store_location_pairs(L: Vec::<(Kmer, u32, u32)>, h: &boomphf::Mphf<Kmer>, bucket_starts: &Vec<usize>) -> Vec<(u32, u32)>{
+    fn store_location_pairs<KmerType : BitPackedNucleotides>(L: Vec::<(KmerType, u32, u32)>, h: &boomphf::Mphf<KmerType>, bucket_starts: &Vec<usize>) -> Vec<(u32, u32)>{
         let mut locations: Vec::<(u32, u32)> = vec![(0,0); *bucket_starts.last().unwrap()]; // Will have an end sentinel
 
         let mut L_tail = &L[..];
@@ -334,7 +343,7 @@ mod build{
 
     // Returns a list of tuples (minmer, seq_id, pos), where 'pos' is the starting position
     // of 'minmer' in sequence with id 'seq_id'.
-    fn build_position_list(db: & SeqDB, k: usize, m: usize) -> Vec<(Kmer, u32, u32)>{
+    fn build_position_list<KmerType : BitPackedNucleotides>(db: & SeqDB, k: usize, m: usize) -> Vec<(KmerType, u32, u32)>{
 
         let parts = (0..db.sequence_count()).into_par_iter()
             // Find out minimizer positions in this sequence
@@ -343,9 +352,9 @@ mod build{
             })
             // Expand the positions into tuples (minmer, seq_id, seq_pos)
             .map(|(i, pos_list)|{
-                let mut tuples = Vec::<(Kmer, u32, u32)>::new();
+                let mut tuples = Vec::<(KmerType, u32, u32)>::new();
                 for p in pos_list.iter(){
-                    let minmer = Kmer::from_ascii(&db.get(i).seq[*p..*p+m]).unwrap();
+                    let minmer = KmerType::from_ascii(&db.get(i).seq[*p..*p+m]).unwrap();
                     tuples.push((minmer, i as u32, *p as u32));
                 }
                 tuples
@@ -355,7 +364,7 @@ mod build{
                 x.extend(y); x
             })
             // Collect the lists from the fold
-            .collect::<Vec::<Vec::<(Kmer, u32, u32)>>>();
+            .collect::<Vec::<Vec::<(KmerType, u32, u32)>>>();
 
         // Concatenate together the lists from the fold
         parts.into_iter().fold(Vec::new(), |mut x, y| {
@@ -363,8 +372,8 @@ mod build{
         })   
     }
 
-    fn collect_distinct_minmers_from_sorted_list(position_list: &Vec<(Kmer, u32, u32)>) -> Vec<Kmer>{
-        let mut minimizer_list: Vec<Kmer> = vec![];
+    fn collect_distinct_minmers_from_sorted_list<KmerType : BitPackedNucleotides>(position_list: &Vec<(KmerType, u32, u32)>) -> Vec<KmerType>{
+        let mut minimizer_list: Vec<KmerType> = vec![];
         for (minmer, _, _) in position_list.iter(){
             match minimizer_list.last(){
                 Some(last) => {
@@ -378,7 +387,7 @@ mod build{
         minimizer_list
     }
 
-    fn compress_sorted_position_list(L: Vec::<(Kmer, u32, u32)>, h: &boomphf::Mphf<Kmer>, n_minimizers: usize) -> (Vec<(u32, u32)>, Vec<usize>){
+    fn compress_sorted_position_list<KmerType : BitPackedNucleotides>(L: Vec::<(KmerType, u32, u32)>, h: &boomphf::Mphf<KmerType>, n_minimizers: usize) -> (Vec<(u32, u32)>, Vec<usize>){
 
         log::info!("Computing bucket sizes");
         let bucket_sizes = get_bucket_sizes(&L, h, n_minimizers);
@@ -391,7 +400,7 @@ mod build{
     }
 
 
-    pub fn build(db: Arc<SeqDB>, k: usize, m: usize) -> MinimizerIndex{
+    pub fn build<KmerType : BitPackedNucleotides>(db: Arc<SeqDB>, k: usize, m: usize) -> MinimizerIndex<KmerType>{
 
         log::info!("Extracting minimizers");
         let mut position_list = build_position_list(db.as_ref(), k, m);
@@ -410,7 +419,7 @@ mod build{
 
         log::info!("Building an MPHF for the minimizers");
         let n_mmers = minimizer_list.len();
-        let mphf = boomphf::Mphf::<Kmer>::new_parallel(1.7, minimizer_list.as_slice(), None);
+        let mphf = boomphf::Mphf::<KmerType>::new_parallel(1.7, minimizer_list.as_slice(), None);
         drop(minimizer_list);
         
         log::info!("Compressing position lists");
@@ -472,7 +481,7 @@ mod tests{
     fn test_vs_hash_table(db: Arc<SeqDB>, k: usize, m: usize){
         
         // Build index
-        let index = MinimizerIndex::new(db.clone(), k, m);
+        let index = MinimizerIndex::<Kmer::<1>>::new(db.clone(), k, m);
         
         // Read sequences
         let seqs = db.iter().map(|rec| rec.seq.to_owned()).collect::<Vec<Vec<u8>>>();
@@ -506,7 +515,7 @@ mod tests{
         test_vs_hash_table(db.clone(), 1, 1);
 
         // Look up a random k-mer (should not be found)
-        let index = MinimizerIndex::new(db, 31, 10);
+        let index = MinimizerIndex::<Kmer::<1>>::new(db, 31, 10);
         let random_kmer = "ATCTTATCTGGGGCTATTGCTAGGGCTTACA".as_bytes();
         assert_eq!(index.lookup_kmer(random_kmer).len(), 0);
     }
@@ -588,7 +597,7 @@ mod tests{
         
     }
 
-    fn serialize_and_load(index: MinimizerIndex) -> MinimizerIndex{
+    fn serialize_and_load(index: MinimizerIndex<Kmer<1>>) -> MinimizerIndex<Kmer<1>>{
         // Serialize and load
         let mut buf = Vec::<u8>::new();
         index.serialize(&mut buf);

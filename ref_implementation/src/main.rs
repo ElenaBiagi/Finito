@@ -2,7 +2,7 @@ mod minimizer_index;
 
 use std::path::PathBuf;
 use jseqio::reverse_complement;
-use minimizer_index::MinimizerIndex;
+use minimizer_index::{MinimizerIndex, Kmer};
 
 use clap::ArgAction;
 use clap::Subcommand;
@@ -155,7 +155,7 @@ fn main() {
             let unitig_db = get_permuted_unitig_db(unitig_db, k);
             let unitig_db = std::sync::Arc::new(unitig_db);
             log::info!("Building index");
-            let index = minimizer_index::MinimizerIndex::new(unitig_db.clone(), k, m);
+            let index = MinimizerIndex::<Kmer<1>>::new(unitig_db.clone(), k, m);
 
             eprintln!("Saving index to {}", out_path.display());
             index.serialize(std::fs::File::create(out_path).unwrap());
@@ -165,7 +165,7 @@ fn main() {
             let indexfile: &PathBuf = cli_matches.get_one("index").unwrap();
             let queryfile: &PathBuf = cli_matches.get_one("query").unwrap();
             let rc = cli_matches.get_flag("reverse-complements");
-            let index = MinimizerIndex::new_from_serialized(std::fs::File::open(indexfile).unwrap());
+            let index = MinimizerIndex::<Kmer<1>>::new_from_serialized(std::fs::File::open(indexfile).unwrap());
             let k = index.get_k();
             let mut query_reader = DynamicFastXReader::from_file(&queryfile).unwrap();
             while let Some(query) = query_reader.read_next().unwrap(){
@@ -200,7 +200,7 @@ fn main() {
         Some(("extract-index-unitigs", cli_matches)) => {
             let indexfile: &PathBuf = cli_matches.get_one("index").unwrap();
             let outfile: &PathBuf = cli_matches.get_one("outfile").unwrap();
-            let index = MinimizerIndex::new_from_serialized(std::fs::File::open(indexfile).unwrap());
+            let index = MinimizerIndex::<Kmer::<1>>::new_from_serialized(std::fs::File::open(indexfile).unwrap());
             let mut writer = DynamicFastXWriter::new_to_file(outfile).unwrap();
             for record in index.get_unitig_db().iter(){
                 writer.write(&record).unwrap();
