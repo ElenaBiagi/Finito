@@ -1,5 +1,7 @@
 mod minimizer_index;
 
+use std::io::Read;
+use std::io::Write;
 use std::path::PathBuf;
 use jseqio::reverse_complement;
 use minimizer_index::{MinimizerIndex, Kmer};
@@ -14,6 +16,9 @@ use clap::{Command, Arg};
 use log::{info, error};
 
 use jseqio::seq_db::SeqDB;
+
+// The file format magic number is "KMIDXv01"
+const MAGIC_NUMBER: [u8; 8] = [b'K', b'M', b'I', b'D', b'X', b'v', b'0', b'1'];
 
 fn colex_compare(a: &[u8], b: &[u8]) -> std::cmp::Ordering{
     a.iter().rev().cmp(b.iter().rev())
@@ -53,6 +58,75 @@ fn get_permuted_unitig_db(db: SeqDB, k: usize) -> SeqDB{
         new_db.push_record(rec);
     }
     new_db
+}
+
+fn build_and_store_index<const KmerWidth64BitWords : usize>(unitig_db: std::sync::Arc<SeqDB>, k: usize, m: usize, out_path: &PathBuf){
+
+    let index = MinimizerIndex::<Kmer<KmerWidth64BitWords>>::new(unitig_db.clone(), k, m);
+
+    eprintln!("Saving index to {}", out_path.display());
+    let mut out_file = std::fs::File::create(out_path).unwrap();
+    out_file.write_all(&MAGIC_NUMBER).unwrap();
+    out_file.write_all(&KmerWidth64BitWords.to_le_bytes()).unwrap();
+    index.serialize(out_file);
+}
+
+fn run_query<const KmerWidth64BitWords : usize>(mut index_in: std::fs::File, queryfile: &PathBuf, rc: bool){
+    let index = MinimizerIndex::<Kmer<KmerWidth64BitWords>>::new_from_serialized(index_in);
+    let k = index.get_k();
+    let mut query_reader = DynamicFastXReader::from_file(&queryfile).unwrap();
+    while let Some(query) = query_reader.read_next().unwrap(){
+        let mut answers = Vec::<(isize, isize)>::new(); // End points in unitigs. -1 means does not exist
+        for kmer in query.seq.windows(k){
+            let mut occurrences = index.lookup_kmer(kmer);
+            if rc {
+                let rc_kmer = reverse_complement(kmer);
+                if rc_kmer != kmer { // Don't re-search self-rc kmers
+                    let rc_occs = index.lookup_kmer(&rc_kmer);
+                    occurrences.extend_from_slice(rc_occs.as_slice());
+                }
+            }
+            if occurrences.len() > 1{
+                eprintln!("Error: k-mer {} occurs in {} unitigs", String::from_utf8_lossy(kmer), occurrences.len());
+                std::process::exit(1);
+            }
+            else if occurrences.is_empty(){
+                answers.push((-1,-1));
+            }
+            else { // Single occurrence
+                let (unitig_id, unitig_pos) = occurrences.first().unwrap();
+                answers.push((*unitig_id as isize, *unitig_pos as isize));
+            }
+        } 
+        // Build the output line
+        let out_line = answers.iter().map(|x| format!("({},{})",x.0, x.1)).collect::<Vec<String>>().join(" ");
+        println!("{}", out_line);
+    }
+}
+
+fn extract_index_unitigs<const KmerWidth64BitWords : usize>(indexfile: &PathBuf, outfile: &PathBuf){
+    let index = MinimizerIndex::<Kmer::<KmerWidth64BitWords>>::new_from_serialized(std::fs::File::open(indexfile).unwrap());
+    let mut writer = DynamicFastXWriter::new_to_file(outfile).unwrap();
+    for record in index.get_unitig_db().iter(){
+        writer.write(&record).unwrap();
+    }
+}
+
+// Reads and checks the magic number and returns the k-mer width
+fn read_index_header(index_in: &mut std::fs::File) -> usize{
+    // Read and check the magic number
+    let magic_number_buf = &mut [0u8; 8];
+    index_in.read_exact(&mut magic_number_buf[..]).unwrap();
+    if magic_number_buf != &MAGIC_NUMBER[..]{
+        eprintln!("Error: Index file does not have the correct magic number {:?}", MAGIC_NUMBER);
+        std::process::exit(1);
+    }
+
+    // Read k-mer width
+    let mut kmer_width_64_bit_words = 0_usize;
+    index_in.read_exact(&mut kmer_width_64_bit_words.to_le_bytes()).unwrap();
+
+    kmer_width_64_bit_words
 }
 
 
@@ -155,56 +229,70 @@ fn main() {
             let unitig_db = get_permuted_unitig_db(unitig_db, k);
             let unitig_db = std::sync::Arc::new(unitig_db);
             log::info!("Building index");
-            let index = MinimizerIndex::<Kmer<1>>::new(unitig_db.clone(), k, m);
+            let kmer_width_64bit_words = (k + 31) / 32; // Two bits per nucleotide
 
-            eprintln!("Saving index to {}", out_path.display());
-            index.serialize(std::fs::File::create(out_path).unwrap());
+            match kmer_width_64bit_words {
+                1 => build_and_store_index::<1>(unitig_db, k, m, out_path),
+                2 => build_and_store_index::<2>(unitig_db, k, m, out_path),
+                3 => build_and_store_index::<3>(unitig_db, k, m, out_path),
+                4 => build_and_store_index::<4>(unitig_db, k, m, out_path),
+                5 => build_and_store_index::<5>(unitig_db, k, m, out_path),
+                6 => build_and_store_index::<6>(unitig_db, k, m, out_path),
+                7 => build_and_store_index::<7>(unitig_db, k, m, out_path),
+                8 => build_and_store_index::<8>(unitig_db, k, m, out_path),
+                _ => {
+                    eprintln!("Error: k-mer length {} is too long", k);
+                    std::process::exit(1);
+                }
+            }
 
         },
         Some(("query", cli_matches)) => {
             let indexfile: &PathBuf = cli_matches.get_one("index").unwrap();
             let queryfile: &PathBuf = cli_matches.get_one("query").unwrap();
             let rc = cli_matches.get_flag("reverse-complements");
-            let index = MinimizerIndex::<Kmer<1>>::new_from_serialized(std::fs::File::open(indexfile).unwrap());
-            let k = index.get_k();
-            let mut query_reader = DynamicFastXReader::from_file(&queryfile).unwrap();
-            while let Some(query) = query_reader.read_next().unwrap(){
-                let mut answers = Vec::<(isize, isize)>::new(); // End points in unitigs. -1 means does not exist
-                for kmer in query.seq.windows(k){
-                    let mut occurrences = index.lookup_kmer(kmer);
-                    if rc {
-                        let rc_kmer = reverse_complement(kmer);
-                        if rc_kmer != kmer { // Don't re-search self-rc kmers
-                            let rc_occs = index.lookup_kmer(&rc_kmer);
-                            occurrences.extend_from_slice(rc_occs.as_slice());
-                        }
-                    }
-                    if occurrences.len() > 1{
-                        eprintln!("Error: k-mer {} occurs in {} unitigs", String::from_utf8_lossy(kmer), occurrences.len());
-                        std::process::exit(1);
-                    }
-                    else if occurrences.is_empty(){
-                        answers.push((-1,-1));
-                    }
-                    else { // Single occurrence
-                        let (unitig_id, unitig_pos) = occurrences.first().unwrap();
-                        answers.push((*unitig_id as isize, *unitig_pos as isize));
-                    }
-                } 
-                // Build the output line
-                let out_line = answers.iter().map(|x| format!("({},{})",x.0, x.1)).collect::<Vec<String>>().join(" ");
-                println!("{}", out_line);
+
+            let mut index_in = std::fs::File::open(indexfile).unwrap();
+
+            let kmer_width_64_bit_words = read_index_header(&mut index_in);
+
+            // Run queries
+            match kmer_width_64_bit_words {
+                1 => run_query::<1>(index_in, queryfile, rc),
+                2 => run_query::<2>(index_in, queryfile, rc),
+                3 => run_query::<3>(index_in, queryfile, rc),
+                4 => run_query::<4>(index_in, queryfile, rc),
+                5 => run_query::<5>(index_in, queryfile, rc),
+                6 => run_query::<6>(index_in, queryfile, rc),
+                7 => run_query::<7>(index_in, queryfile, rc),
+                8 => run_query::<8>(index_in, queryfile, rc),
+                _ => {
+                    eprintln!("Error: invalid k-mer word width {} in index file {}", kmer_width_64_bit_words, indexfile.display());
+                    std::process::exit(1);
+                }
             }
-            std::process::exit(1);
+
         },
         Some(("extract-index-unitigs", cli_matches)) => {
             let indexfile: &PathBuf = cli_matches.get_one("index").unwrap();
             let outfile: &PathBuf = cli_matches.get_one("outfile").unwrap();
-            let index = MinimizerIndex::<Kmer::<1>>::new_from_serialized(std::fs::File::open(indexfile).unwrap());
-            let mut writer = DynamicFastXWriter::new_to_file(outfile).unwrap();
-            for record in index.get_unitig_db().iter(){
-                writer.write(&record).unwrap();
+            let mut index_in = std::fs::File::open(indexfile).unwrap();
+            let kmer_width_64_bit_words = read_index_header(&mut index_in);
+            match kmer_width_64_bit_words {
+                1 => extract_index_unitigs::<1>(indexfile, outfile),
+                2 => extract_index_unitigs::<2>(indexfile, outfile),
+                3 => extract_index_unitigs::<3>(indexfile, outfile),
+                4 => extract_index_unitigs::<4>(indexfile, outfile),
+                5 => extract_index_unitigs::<5>(indexfile, outfile),
+                6 => extract_index_unitigs::<6>(indexfile, outfile),
+                7 => extract_index_unitigs::<7>(indexfile, outfile),
+                8 => extract_index_unitigs::<8>(indexfile, outfile),
+                _ => {
+                    eprintln!("Error: invalid k-mer word width {} in index file {}", kmer_width_64_bit_words, indexfile.display());
+                    std::process::exit(1);
+                }
             }
+
         },
         _ => {
             eprintln!("Error: No subcommand given");
