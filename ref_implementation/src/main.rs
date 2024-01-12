@@ -118,15 +118,15 @@ fn read_index_header(index_in: &mut std::fs::File) -> usize{
     let magic_number_buf = &mut [0u8; 8];
     index_in.read_exact(&mut magic_number_buf[..]).unwrap();
     if magic_number_buf != &MAGIC_NUMBER[..]{
-        eprintln!("Error: Index file does not have the correct magic number {:?}", MAGIC_NUMBER);
+        eprintln!("Error: Index file does not start with the header bytes {:?}", MAGIC_NUMBER);
         std::process::exit(1);
     }
 
     // Read k-mer width
-    let mut kmer_width_64_bit_words = 0_usize;
-    index_in.read_exact(&mut kmer_width_64_bit_words.to_le_bytes()).unwrap();
+    let mut kmer_width_64_bit_words_buf = 0_usize.to_le_bytes();
+    index_in.read_exact(&mut kmer_width_64_bit_words_buf).unwrap();
 
-    kmer_width_64_bit_words
+    usize::from_le_bytes(kmer_width_64_bit_words_buf)
 }
 
 
