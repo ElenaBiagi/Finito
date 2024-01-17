@@ -55,21 +55,6 @@ void load_v(const std::string& filename, sdsl::int_vector<>& v) {
     in.close();
 }
 
-// TODO check if it is used
-void save_bv(const std::string& filename, const sdsl::bit_vector& v) {
-    std::ofstream out(filename, std::ios::binary);
-    sdsl::serialize(v, out);
-    out.close();
-}
-
-// TODO check if it is used
-void load_bv(const std::string& filename, sdsl::bit_vector& v) {
-    std::ifstream in(filename, std::ios::binary);
-    sdsl::load(v, in);
-    in.close();
-}
-
-
 //write the output as a fasta file
 template<typename writer_t>
 void write_fasta(const pair<string,string>& p, writer_t& out){
@@ -81,29 +66,7 @@ void write_fasta(const pair<string,string>& p, writer_t& out){
     out.write(&newline, 1);
 }
 
-// TODO check if it is used
-void write_fasta_old(const pair<string,string>& sequencePair, string& filename) {
-    std::ofstream outputFile(filename + ".fa", std::ios_base::app);
-    outputFile << ">" + sequencePair.first + '\n'; // Write sequence ID
-    outputFile << sequencePair.second + '\n'; // Write sequence data
-    outputFile.close();
-}
-
-// TODO check if it is used
-
-void write_str_v(const vector<string>& myVector, const string& filename) {
-    //if (filesystem::exists(filename)) { filesystem::remove(filename);}
-    std::ofstream outputFile(filename);
-    while (outputFile.is_open()) {
-        for (int i=0; i<myVector.size(); i++){//(const auto& str : myVector) {
-            outputFile << i << " " << myVector[i] << '\n';
-        }
-        outputFile.close();
-    }
-}
-
 // Not used, but usefull for debugging
-
 void print_LCS(const string& v,const string& fname) {
     std::ofstream csv_file(fname);
     // Write the contents of the int_vector to the CSV file
