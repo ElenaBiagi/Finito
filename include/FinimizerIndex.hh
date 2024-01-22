@@ -37,9 +37,9 @@ private:
     FinimizerIndex(const FinimizerIndex& other) = delete;
     FinimizerIndex& operator=(const FinimizerIndex& other) = delete;
 
-    void add_to_query_result(const int64_t unitig_rank, bool rc, const int64_t global_kmer_end, QueryResult& answer) const{
+    void add_to_query_result(const int64_t global_unitig_rank, const int64_t unitig_rank, const bool rc, const int64_t global_kmer_end, QueryResult& answer) const{
         int64_t global_kmer_start = global_kmer_end - sbwt->get_k() + 1;
-        pair<int64_t, int64_t> local_start = unitigs.global_offset_to_local_offset(global_kmer_start, unitig_rank, rc, sbwt->get_k());
+        pair<int64_t, int64_t> local_start = unitigs.global_offset_to_local_offset(global_unitig_rank, global_kmer_start, unitig_rank, rc, sbwt->get_k());
         answer.local_offsets.push_back(local_start);
         answer.n_found++;
     }
@@ -82,7 +82,7 @@ private:
                 int trailing_zeros = __builtin_ctzll(result);
                 for (int i = 0; i < trailing_zeros/2; i++){
                     global_kmer_end++;
-                    add_to_query_result(unitig_rank, rc, global_kmer_end, answer);
+                    add_to_query_result(unitig_id, unitig_rank, rc, global_kmer_end, answer);
                     kmer_end++; // keep track of how many kmers were found    
                 }
                 break; // No need to check further. A mismatch has been found. // exit the while loop
@@ -90,7 +90,7 @@ private:
             int trailing_zeros = (word_len)*2; // the whole word_len matches
             for (int i = 0; i < trailing_zeros/2; i++){
                 global_kmer_end++;
-                add_to_query_result(unitig_rank, rc, global_kmer_end, answer);
+                add_to_query_result(unitig_id, unitig_rank, rc, global_kmer_end, answer);
                 kmer_end++; // keep track of how many kmers were found    
             }
             max_match -= word_len;
@@ -192,7 +192,7 @@ public:
             
                 unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
                 
-                add_to_query_result(unitig_rank, rc, global_kmer_end, answer);
+                add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
                 if ((kmer_end + 1)< query.size()){
                     walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k, unitig_rank, rc, global_unitig_rank);
                 }  
@@ -319,7 +319,7 @@ public:
         //sdsl::bit_vector fmin_found(n_nodes, 0);
         sdsl::int_vector fmin_found(n_nodes, 0);
         
-        vector<uint64_t> global_offsets; // TODO: -> 64 bits
+        vector<uint64_t> global_offsets;
         global_offsets.reserve(n_nodes);
         global_offsets.resize(n_nodes, 0);
         
@@ -363,7 +363,6 @@ public:
         index->Rpermutation = std::move(Rpermutation); // Transfer ownership
     }
 
-    // TODO: 32 bits for global offsets might not be enough
     set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::int_vector<>& fmin_found, vector<uint64_t>& global_offsets, const int64_t unitig_start) {
         const int64_t n_nodes = sbwt->number_of_subsets();
         const int64_t k = sbwt->get_k();
@@ -389,12 +388,12 @@ public:
         for (end = 0; end < str_len; end++) {
             c = static_cast<char>(seq[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
             // TODO we don't need to check the char here anymore 
-            char_idx = get_char_idx(c);
+            /*char_idx = get_char_idx(c);
             if (char_idx == -1) [[unlikely]]{
                std::cerr << "Error: unknown character: " << c << endl;
                std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
                 return {};
-            } else {
+            } else { */
                 //const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
                 //update the sbwt INTERVAL
                 I = this->sbwt->update_sbwt_interval(&c, 1, I);
@@ -418,7 +417,7 @@ public:
                     }
                     all_fmin.push_back(curr_substr);
                 }
-            }
+            //}
             if (end >= k -1 ){
                 count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
 
@@ -426,9 +425,8 @@ public:
                     fmin_bv[get<2>(w_fmin)]=1;
                     fmin_found[get<2>(w_fmin)] = get<3>(w_fmin);
 
-                    if ((unitig_start + get<3>(w_fmin))> UINT64_MAX){
-                        std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
-                    }
+                    assert ((unitig_start + get<3>(w_fmin)) > UINT64_MAX);
+                        
                     global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
                     // TODO We could add a bit to say if the unitig is forward or rc
 

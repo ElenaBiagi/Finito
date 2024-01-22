@@ -90,13 +90,13 @@ class PackedStrings{
     }
 
     // Returns pair (unitig_id, offset_in_unitig)
-    pair<int64_t, int64_t> global_offset_to_local_offset(int64_t global_offset, const int64_t unitig_rank, bool rc, int64_t k) const{
+    pair<int64_t, int64_t> global_offset_to_local_offset(const int64_t ends_idx, int64_t global_offset, const int64_t unitig_rank, bool rc, int64_t k) const{
         assert(global_offset >= 0 && global_offset < concat.size());
         
         // Binary search the smallest index in ends that has value larger than the global offset
         // this cannot be 0
 
-        int64_t ends_idx = std::upper_bound(ends.begin(), ends.end(), global_offset) - ends.begin();
+        //int64_t ends_idx = std::upper_bound(ends.begin(), ends.end(), global_offset) - ends.begin();
         int64_t global_start = (ends_idx == 0) ? 0 : ends[ends_idx-1];
         int64_t local_offset = global_offset - global_start;
         if (rc) {
