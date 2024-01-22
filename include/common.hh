@@ -103,12 +103,12 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-        int64_t char_idx = get_char_idx(c);
+    /*  int64_t char_idx = get_char_idx(c);
         if (char_idx == -1) [[unlikely]]{
             cerr << "Error: unknown character: " << c << endl;
             cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
-        } else {
+        } else {*/
             // 1) fmin interval
             I_new = sbwt.update_sbwt_interval(&c, 1, I); //I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
             // (1) Finimizer(subseq) NOT found
@@ -180,7 +180,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
-        }
+        //}
     }
     return tie(colex_ranks, finimizers, best);
 }

@@ -29,7 +29,6 @@
 #include "sbwt/suffix_group_optimization.hh"
 #include "lcs_basic_parallel_algorithm.hpp"
 #include "common.hh"
-//#include "lcs_basic_algorithm.hpp"
 
 using namespace std;
 using namespace sbwt;
@@ -150,11 +149,11 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
     for (end = 0; end < str_len; end++) {
         c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
         char_idx = get_char_idx(c);
-        if (char_idx == -1) [[unlikely]]{
+        /*if (char_idx == -1) [[unlikely]]{
            std::cerr << "Error: unknown character: " << c << endl;
            std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
-        } else {
+        } else {*/
             //update the sbwt INTERVAL
             I = sbwt.update_sbwt_interval(&c, 1, I);
             freq = (I.second - I.first + 1);
@@ -183,7 +182,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                 all_fmin.push_back(curr_substr);
  
             }
-        }
+        //}
         if (end >= k -1 ){
             if (!fmin_found[get<2>(w_fmin)]){ // if the kmer never been found before
                 count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin) });// (length,freq,colex)
