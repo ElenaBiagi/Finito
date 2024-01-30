@@ -39,7 +39,7 @@ std::vector<std::string> get_available_variants_fmin(){
     return {"plain-matrix"};//, "rrr-matrix", "mef-matrix", "plain-split", "rrr-split", "mef-split", "plain-concat", "mef-concat", "plain-subsetwt", "rrr-subsetwt"};
 }
 std::vector<std::string> get_available_types(){
-    return {"rarest", "shortest", "optimal", "verify"};
+    return {"rarest"};//, "shortest", "verify"};
 }
 
 void save_v(const std::string& filename, const sdsl::int_vector<>& v) {
@@ -102,7 +102,6 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plai
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
     int64_t I_start;
     char c;
-    char char_idx;
     // window
     for (int64_t i = 0; i <= str_len - k; i++) {
         w_fmin = {k + 1, n_nodes, n_nodes, str_len}; // {len, freq, I start, start}
@@ -112,7 +111,6 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plai
             // ending pos for the window
             for (int64_t end = start; end < k + i; end++) {
                 c = static_cast<char>(input[end] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-                char_idx = get_char_idx(c);
                 I = sbwt.update_sbwt_interval(&c, 1, I);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
@@ -123,7 +121,6 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plai
             }
         }
         count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin)});// (length,freq,colex)
-        //cerr << input.substr(i, k) << endl << input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1, get<0>(w_fmin)) << endl;
         //write_fasta({input.substr(i, k)+ ' ' + to_string(get<1>(w_fmin)), input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1, get<0>(w_fmin))}, writer);
     }
     return count_all_w_fmin;
@@ -146,6 +143,7 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
     tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
     char c;
     char char_idx;
+
     for (end = 0; end < str_len; end++) {
         c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
         char_idx = get_char_idx(c);
@@ -154,7 +152,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
            std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
             return {};
         } else {*/
-            //update the sbwt INTERVAL
             I = sbwt.update_sbwt_interval(&c, 1, I);
             freq = (I.second - I.first + 1);
             I_start = I.first;
@@ -162,8 +159,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
             if (freq <= t){ // 1. rarest
                 while (freq <= t){ // 2. shortest
                 curr_substr = {end - start + 1,freq, I_start, end};
-                //all_fmin.insert(curr_substr); // insert every unique substr
-
                 // (2) drop the first char
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
                 start++;
@@ -190,7 +185,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                     fmin_found[get<2>(w_fmin)] = 1;
                 }
             }
-            //cerr << input.substr(kmer,k) << endl << input.substr(get<3>(w_fmin)-get<0>(w_fmin)+1,get<0>(w_fmin)) << endl;
             //write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
             kmer++;
             // Check if the current minimizer is still in this window
@@ -249,7 +243,6 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
 template<typename sbwt_t, typename reader_t>
 void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
 
-
     if(type == "rarest"){
         if(t != 1){
             throw std::runtime_error("t != 1 does not make sense with rarest type");
@@ -259,7 +252,7 @@ void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& in
         index->serialize(index_prefix);
     } /* else if(type == "shortest"){
         // Just print stats because we don't have an index for this yet
-        print_shortest_finimizer_stats(*sbwt, *LCS, reader, t);
+        print_shortest_finimizer_stats(*sbwt, *LCS, f_reader, t);
     } else if(type == "verify"){
         // Print stats on shortest finimizers based on a reference implementation
         set<tuple<int64_t,int64_t, int64_t>> finimizers;
@@ -273,8 +266,8 @@ void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& in
             }
         }
         print_finimizer_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), t);    
-    }*/
-
+    }
+ */
 }
 
 template<typename sbwt_t, typename reader_t>
@@ -327,9 +320,8 @@ int build_fmin(int argc, char** argv) {
             "The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
             cxxopts::value<string>())
         ("r,r-file", "reverse complement of f-file", cxxopts::value<string>())
-
         ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
-        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
+        ("t", "Maximum finimizer frequency", cxxopts::value<int>()->default_value("1"))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage");
 
@@ -398,13 +390,12 @@ int build_fmin(int argc, char** argv) {
             std::cerr<< "LCS_file empty" << std::endl;
             LCS_file = out_prefix + ".LCS.sdsl";
             const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(*sbwt, 8);
-            //const sdsl::int_vector<> LCS = lcs_basic_algorithm(*sbwt);
             save_v(LCS_file, LCS);
         }
         unique_ptr<sdsl::int_vector<>> LCS = make_unique<sdsl::int_vector<>>();
         load_v(LCS_file, *LCS);
         std::cerr<< "LCS_file loaded" << std::endl;
-        fmin_search(f_files, r_files, out_prefix, move(sbwt), move(LCS), t, type);//DNA_bitvectors,
+        fmin_search(f_files, r_files, out_prefix, move(sbwt), move(LCS), t, type);
 
     }
     return 0;
