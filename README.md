@@ -69,11 +69,13 @@ build-fmin [OPTION...]
                         (default: "")
   -h, --help            Print usage
 ```
+
 ## k-mer lookup queries
 
 You can query $k$-mer in the unitigs with:
 ```
 ./benchmark search-fmin -o <outfile>  -q <query-file.fa> -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
+```
 ```
 Usage:
   search-fmin [OPTION...]
