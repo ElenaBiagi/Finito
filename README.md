@@ -33,6 +33,7 @@ You also need to create a file with the reverse complement of the unitigs.
 ```
 
 ```
+Usage:
   reverse -i <input> -o <output>
 
   -i, --in-file arg   The SPSS in FASTA or FASTQ format, possibly gzipped. 
@@ -46,7 +47,12 @@ You also need to create a file with the reverse complement of the unitigs.
 ```
 
 Then, you can build the Finimizers index with:
+
 ```
+./benchmark build-fmin -o out-file -f unitigs.fna -r rev_unitigs.fna -i index.sbwt [--lcs LCS.sdsl] [-t 1] [--type rarest] 
+```
+```
+Usage:
 build-fmin [OPTION...]
 
   -o, --out-file arg    Output index filename prefix.
@@ -64,13 +70,13 @@ build-fmin [OPTION...]
   -h, --help            Print usage
 ```
 
-```
-./benchmark build-fmin -o out-file -u unitigs.fna -i index.sbwt [--lcs LCS.sdsl] [-t 1] [--type rarest]
-```
 and query the data with:
 
 ```
-Query all Finimizers of all input reads.
+Query all Finimizers of all input reads with:
+```
+./benchmark search-fmin -o <outfile>  -q <query-file.fa> -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
+```
 Usage:
   search-fmin [OPTION...]
 
@@ -86,12 +92,7 @@ Usage:
 
   -h, --help            Print usage
 ```
-** Modify the example **
-```
-./benchmark search-fmin -o <outfile>  -q <query-file.fa> -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
-
-```
-type has to be the same for both commands. The default type is "rarest", t=1. Selecting shortest the shortest finimizers is selected among those with frequency smaller than t. If t=1 then the two types are equivalent.
+type has to be the same for both commands.
 Support for lookup queries is currently available only for "rarest".
 
 ### Spectrum Preserving String Set (SPSS)
