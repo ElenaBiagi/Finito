@@ -119,7 +119,7 @@ int reverse_strings(int argc, char** argv) {
 
     options.add_options()
 
-        ("u,in-file",
+        ("i,in-file",
             "The SPSS in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
             cxxopts::value<string>())
         ("o,out-file", 
