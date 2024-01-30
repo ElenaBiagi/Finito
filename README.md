@@ -95,8 +95,8 @@ Usage:
 type has to be the same for both commands.
 Support for lookup queries is currently available only for "rarest".
 
-### Spectrum Preserving String Set (SPSS)
-A SPSS is required as input to build the SBWT index. You can obtain canonical unitigs using [ggcat](https://github.com/algbio/ggcat).
+### Disjoint Spectrum Preserving String Set (DSPSS)
+A DSPSS is required as input to build the SBWT index. You can obtain canonical unitigs or eulertigs using [ggcat](https://github.com/algbio/ggcat).
 
 ```
 ggcat build --min-multiplicity 1 -k <k> --output-file unitigs.fna --threads-count 48 input.fna
