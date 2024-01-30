@@ -43,10 +43,10 @@ private:
         answer.local_offsets.push_back(local_start);
         answer.n_found++;
     }
-
-    void walk_in_unitigs(const std::string& query, const PackedStrings& unitigs, int64_t global_kmer_end, QueryResult& answer, int64_t& kmer_end, const int64_t k, int64_t unitig_rank, bool rc, int64_t unitig_id) const{
+                
+    void walk_in_unitigs(const std::string& query, const PackedStrings& unitigs, int64_t global_kmer_end, QueryResult& answer, int64_t& kmer_end, const int64_t k, int64_t unitig_rank, bool rc, int64_t global_unitig_rank, int64_t local_offset) const{
         
-        int64_t u_end = unitigs.ends[unitig_id]; // exlusive end
+        int64_t u_end = unitigs.ends[global_unitig_rank]; // exlusive end
         assert(u_end > global_kmer_end);
        
         int64_t max_match = std::min(u_end - global_kmer_end-1, (int64_t)((query.length()-kmer_end)-1));
@@ -82,7 +82,10 @@ private:
                 int trailing_zeros = __builtin_ctzll(result);
                 for (int i = 0; i < trailing_zeros/2; i++){
                     global_kmer_end++;
-                    add_to_query_result(unitig_id, unitig_rank, rc, global_kmer_end, answer);
+                    //add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
+                    (rc)? local_offset--: local_offset++;
+                    answer.local_offsets.push_back({unitig_rank, local_offset});
+                    answer.n_found++;
                     kmer_end++; // keep track of how many kmers were found    
                 }
                 break; // No need to check further. A mismatch has been found. // exit the while loop
@@ -90,7 +93,10 @@ private:
             int trailing_zeros = (word_len)*2; // the whole word_len matches
             for (int i = 0; i < trailing_zeros/2; i++){
                 global_kmer_end++;
-                add_to_query_result(unitig_id, unitig_rank, rc, global_kmer_end, answer);
+                //add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
+                (rc)? local_offset--: local_offset++;
+                answer.local_offsets.push_back({unitig_rank, local_offset});
+                answer.n_found++;
                 kmer_end++; // keep track of how many kmers were found    
             }
             max_match -= word_len;
@@ -160,17 +166,30 @@ public:
                 int64_t colex = 0 ;
                 int64_t global_unitig_rank = 0;
                 int64_t unitig_rank = 0; // does not include rc unitigs
+                int64_t local_offset = 0;
+                int64_t global_start = 0;
                 bool rc = false;
                 if(rightmost_branch_end.has_value()) {
-                    // Look up from the branch dictionary
+                    // Look up from the Ustart dictionary
                     int64_t p = rightmost_branch_end.value().first;
                     colex = rightmost_branch_end.value().second; 
                     // Get the global offset of the end of the k-mer
-                    global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
-                    global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
-                    
+
                     global_unitig_rank = Ustart_rs.rank(colex);
                     assert(global_unitig_rank < unitigs.ends.size());
+                                        
+                    // Check if it is found in a rc unitig
+                    rc = Rstart[colex];
+                    const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
+                    assert(rc_unitig_rank < unitigs.ends.size());
+                
+                    unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
+                    
+                    global_start = (global_unitig_rank == 0) ? 0 : unitigs.ends[global_unitig_rank-1];
+                    
+                    local_offset = kmer_end - p; // Shift to the right place in the unitig
+
+                    global_kmer_end = global_start + kmer_end - p +k -1; // Shift to the right place in the unitig
                                     
                 } else {
                     //Look up from Finimizer dictionary
@@ -182,19 +201,31 @@ public:
                     global_unitig_rank = std::upper_bound(unitigs.ends.begin(), unitigs.ends.end(), global_kmer_end-k+1) - unitigs.ends.begin();
                     colex = Ustart_ss(global_unitig_rank+1);
                     
-    
-                }
-                // A kmer has been found
-                // Check if it is found in a rc unitig
-                rc = Rstart[colex];
-                const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
-                assert(rc_unitig_rank < unitigs.ends.size());
-            
-                unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
+                    // Check if it is found in a rc unitig
+                    rc = Rstart[colex];
+                    const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
+                    assert(rc_unitig_rank < unitigs.ends.size());
                 
-                add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
+                    unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
+
+                    // add_to_query_result
+                    int64_t global_kmer_start = global_kmer_end - k + 1;
+                    global_start = (global_unitig_rank == 0) ? 0 : unitigs.ends[global_unitig_rank-1];
+                    local_offset = global_kmer_start - global_start;
+                
+                }
+
+                if (rc) {
+                    int64_t unitig_len = unitigs.ends[global_unitig_rank] - global_start;
+                    local_offset = unitig_len - local_offset - k;
+                }        
+                answer.local_offsets.push_back({unitig_rank, local_offset});
+                answer.n_found++;
+                // A kmer has been found
+                                
+                //add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
                 if ((kmer_end + 1)< query.size()){
-                    walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k, unitig_rank, rc, global_unitig_rank);
+                    walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k, unitig_rank, rc, global_unitig_rank, local_offset);
                 }  
             } else { 
                 answer.local_offsets.push_back({-1, -1});
