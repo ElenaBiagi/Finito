@@ -1,6 +1,6 @@
 # Finimizers
-Missing definition
-
+Shortest Unique Finimizers
+Let $R$ be a set of $k$-mers, $t \geq 1$ be an integer, $X$ be a $k$-mer, and $Y$ be a substring of $X$. We say $Y$ is a {\em shortest finimizer} of $X$ if it is the shortest (or equal shortest) substring of $X$ that occurs at most $t$ times in the de Bruijn graph of $R$. If $t = 1$ then we say $Y$ is a {\em shortest-unique finimizer} of X.
 
 
 ## Building
