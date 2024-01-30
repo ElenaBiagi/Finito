@@ -1,5 +1,5 @@
 # Finimizers
-Shortest Unique Finimizers
+### Shortest Unique Finimizers
 Let $R$ be a set of $k$-mers, $t \geq 1$ be an integer, $X$ be a $k$-mer, and $Y$ be a substring of $X$. We say $Y$ is a _shortest finimizer_ of $X$ if it is the shortest (or equal shortest) substring of $X$ that occurs at most $t$ times in the de Bruijn graph of $R$. If $t = 1$ then we say $Y$ is a _shortest-unique finimizer_ of $X$.
 
 
@@ -69,11 +69,9 @@ build-fmin [OPTION...]
                         (default: "")
   -h, --help            Print usage
 ```
+## k-mer lookup queries
 
-and query the data with:
-
-```
-Query all Finimizers of all input reads with:
+You can query $k$-mer in the unitigs with:
 ```
 ./benchmark search-fmin -o <outfile>  -q <query-file.fa> -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
 ```
