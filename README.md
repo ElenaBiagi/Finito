@@ -23,7 +23,7 @@ make benchmark --always-make CXX=g++-10
 The code takes a plain-matrix sbwt file as input generated from canonical unitigs. You can generate one by running:
 
 ```
-./SBWT/build/bin/sbwt build -i SBWT/example_data/coli3.fna -o index.sbwt -k 30 --add-reverse-complements
+./SBWT/build/bin/sbwt build -i SBWT/example_data/coli3.fna -o index.sbwt -k 31 --add-reverse-complements
 ```
 
 You also need to create a file with the reverse complement of the unitigs.
