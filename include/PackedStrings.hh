@@ -105,6 +105,14 @@ class PackedStrings{
         } 
         return {unitig_rank, local_offset};
     }
+
+    pair<int64_t,int64_t> check_reverse(int64_t colex, const sdsl::bit_vector& Rstart, const sdsl::rank_support_v5<>& Rstart_rs, const sdsl::int_vector<>& Rpermutation, const int64_t global_unitig_rank)const{
+        bool rc = Rstart[colex];
+        const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
+        assert(rc_unitig_rank < ends.size());
+        int64_t unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
+        return {rc,unitig_rank};
+    }
 };
 
 // Returns packed unitigs + the Ustart bit vector + Rstart bit vector

@@ -176,10 +176,9 @@ public:
                     assert(global_unitig_rank < unitigs.ends.size());
                                         
                     // Check if it is found in a rc unitig
-                    rc = Rstart[colex];
-                    const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
-                    assert(rc_unitig_rank < unitigs.ends.size());
-                    unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
+                    std::tie(rc,unitig_rank) = unitigs.check_reverse(colex, Rstart, Rstart_rs, Rpermutation, global_unitig_rank);
+
+
                     global_start = (global_unitig_rank == 0) ? 0 : unitigs.ends[global_unitig_rank-1];
                     local_offset = kmer_end - p; // Shift to the right place in the unitig
                     global_kmer_end = global_start + local_offset +k -1; // Shift to the right place in the unitig concatenation
@@ -192,13 +191,11 @@ public:
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
                     // Find unitig rank
                     global_unitig_rank = std::upper_bound(unitigs.ends.begin(), unitigs.ends.end(), global_kmer_end-k+1) - unitigs.ends.begin();
+                    assert(global_unitig_rank < unitigs.ends.size());
                     colex = Ustart_ss(global_unitig_rank+1);
                     
                     // Check if it is found in a rc unitig
-                    rc = Rstart[colex];
-                    const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
-                    assert(rc_unitig_rank < unitigs.ends.size());
-                    unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
+                    std::tie(rc,unitig_rank) = unitigs.check_reverse(colex, Rstart, Rstart_rs, Rpermutation, global_unitig_rank);
 
                     // add_to_query_result
                     int64_t global_kmer_start = global_kmer_end - k + 1;
