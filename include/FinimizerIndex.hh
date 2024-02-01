@@ -28,7 +28,7 @@ class FinimizerIndex{
 public:
 
     struct QueryResult{
-        vector<pair<int64_t, int64_t>> local_offsets; // Unitig id, distance from the start of the unitig
+        vector<pair<int64_t, int64_t>> local_offsets; // {Unitig id, distance from the start of the unitig}
         int64_t n_found = 0;
     };
 
@@ -82,18 +82,16 @@ private:
                 int trailing_zeros = __builtin_ctzll(result);
                 for (int i = 0; i < trailing_zeros/2; i++){
                     global_kmer_end++;
-                    //add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
                     (rc)? local_offset--: local_offset++;
                     answer.local_offsets.push_back({unitig_rank, local_offset});
                     answer.n_found++;
-                    kmer_end++; // keep track of how many kmers were found    
+                    kmer_end++; // keep track of how many kmers were found   
                 }
                 break; // No need to check further. A mismatch has been found. // exit the while loop
             }
             int trailing_zeros = (word_len)*2; // the whole word_len matches
             for (int i = 0; i < trailing_zeros/2; i++){
                 global_kmer_end++;
-                //add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
                 (rc)? local_offset--: local_offset++;
                 answer.local_offsets.push_back({unitig_rank, local_offset});
                 answer.n_found++;
@@ -134,7 +132,7 @@ public:
         //   - If a branch point was found, the k-mer containing x is at the unitig after the rightmost
         //     branch. Otherwise, the k-mer containing x is at the unitig that x points to.
         //   - If there was a branch, the k- mer endpoint in that unitig is k + the number of steps taken after the last branch.
-        //     
+        // Branches are marked by the Ustart bitvector
 
         const plain_matrix_sbwt_t& sbwt = *(this->sbwt.get());
         const int64_t n_nodes = sbwt.number_of_subsets();
@@ -146,7 +144,6 @@ public:
         QueryResult answer{{}, 0};
 
         if(query.size() < k) answer; 
-
 
         //Find kmers and Finimizers together
         tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vector<optional< pair<int64_t, int64_t> >>>colex_finimizers = rarest_fmin_streaming_search(sbwt, *LCS, query, Ustart);
@@ -162,7 +159,7 @@ public:
                 int64_t finimizer_end = finimizers_ends_colex[kmer_end].value().first;
                 
                 optional<pair<int64_t, int64_t>> rightmost_branch_end = rightmost_Ustart[kmer_end];
-                // Get rightmost Rstart
+                // Get rightmost Ustart
                 int64_t colex = 0 ;
                 int64_t global_unitig_rank = 0;
                 int64_t unitig_rank = 0; // does not include rc unitigs
@@ -182,14 +179,10 @@ public:
                     rc = Rstart[colex];
                     const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
                     assert(rc_unitig_rank < unitigs.ends.size());
-                
                     unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
-                    
                     global_start = (global_unitig_rank == 0) ? 0 : unitigs.ends[global_unitig_rank-1];
-                    
                     local_offset = kmer_end - p; // Shift to the right place in the unitig
-
-                    global_kmer_end = global_start + kmer_end - p +k -1; // Shift to the right place in the unitig
+                    global_kmer_end = global_start + local_offset +k -1; // Shift to the right place in the unitig concatenation
                                     
                 } else {
                     //Look up from Finimizer dictionary
@@ -205,14 +198,12 @@ public:
                     rc = Rstart[colex];
                     const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
                     assert(rc_unitig_rank < unitigs.ends.size());
-                
                     unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
 
                     // add_to_query_result
                     int64_t global_kmer_start = global_kmer_end - k + 1;
                     global_start = (global_unitig_rank == 0) ? 0 : unitigs.ends[global_unitig_rank-1];
                     local_offset = global_kmer_start - global_start;
-                
                 }
 
                 if (rc) {
@@ -221,9 +212,8 @@ public:
                 }        
                 answer.local_offsets.push_back({unitig_rank, local_offset});
                 answer.n_found++;
-                // A kmer has been found
-                                
-                //add_to_query_result(global_unitig_rank, unitig_rank, rc, global_kmer_end, answer);
+                
+                // walk in the current unitig                
                 if ((kmer_end + 1)< query.size()){
                     walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k, unitig_rank, rc, global_unitig_rank, local_offset);
                 }  
@@ -347,7 +337,6 @@ public:
 
         int64_t n_nodes = this->sbwt->number_of_subsets();
         sdsl::bit_vector fmin_bv(n_nodes, 0); // Finimizer marks
-        //sdsl::bit_vector fmin_found(n_nodes, 0);
         sdsl::int_vector fmin_found(n_nodes, 0);
         
         vector<uint64_t> global_offsets;
@@ -418,20 +407,11 @@ public:
         // if start == end than the frequency higher than t
         for (end = 0; end < str_len; end++) {
             c = static_cast<char>(seq[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-            // TODO we don't need to check the char here anymore 
-            /*char_idx = get_char_idx(c);
-            if (char_idx == -1) [[unlikely]]{
-               std::cerr << "Error: unknown character: " << c << endl;
-               std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
-                return {};
-            } else { */
-                //const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
-                //update the sbwt INTERVAL
-                I = this->sbwt->update_sbwt_interval(&c, 1, I);
-                freq = (I.second - I.first + 1);
-                I_start = I.first;
-                if (freq == 1){ // 1. rarest 
-                    while (freq == 1) {  //2. shortest
+            I = this->sbwt->update_sbwt_interval(&c, 1, I);
+            freq = (I.second - I.first + 1);
+            I_start = I.first;
+            if (freq == 1){ // 1. rarest 
+                while (freq == 1) {  //2. shortest
                     curr_substr = {freq, end - start + 1, I_start, end};
                     // (2) drop the first char
                     // When you drop the first char you are sure to find x_2..m since you found x_1..m before
@@ -439,16 +419,15 @@ public:
                     I = drop_first_char(end - start + 1, I, *(this->LCS), n_nodes);
                     freq = (I.second - I.first + 1);
                     I_start = I.first;
-                    }
-                    if (w_fmin > curr_substr) {
-                        all_fmin.clear();
-                        w_fmin = curr_substr;
-                    } else{
-                        while (all_fmin.back() > curr_substr) {all_fmin.pop_back();}
-                    }
-                    all_fmin.push_back(curr_substr);
                 }
-            //}
+                if (w_fmin > curr_substr) {
+                    all_fmin.clear();
+                    w_fmin = curr_substr;
+                } else{                        
+                    while (all_fmin.back() > curr_substr) {all_fmin.pop_back();}
+                }
+                all_fmin.push_back(curr_substr);
+            }
             if (end >= k -1 ){
                 count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)
 
@@ -460,7 +439,6 @@ public:
                         
                     global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
                     // TODO We could add a bit to say if the unitig is forward or rc
-
                 }
                 // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
                 kmer++;

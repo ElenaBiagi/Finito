@@ -103,16 +103,10 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
     // if start == end than the frequency higher than t
     for (end = 0; end < str_len; end++) {
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-    /*  int64_t char_idx = get_char_idx(c);
-        if (char_idx == -1) [[unlikely]]{
-            cerr << "Error: unknown character: " << c << endl;
-            cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
-            return {};
-        } else {*/
-            // 1) fmin interval
-            I_new = sbwt.update_sbwt_interval(&c, 1, I); //I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
-            // (1) Finimizer(subseq) NOT found
-            // TODO We already know that no kmer will be found
+        // 1) fmin interval
+        I_new = sbwt.update_sbwt_interval(&c, 1, I); //I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
+        // (1) Finimizer(subseq) NOT found
+        // TODO We already know that no kmer will be found
             while(I_new.first == -1){
                 kmer_start = ++start;
                 if (start>end)[[unlikely]]{
