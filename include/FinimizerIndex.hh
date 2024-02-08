@@ -386,7 +386,9 @@ public:
                     }
                     global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
                 }
-                // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
+                // Write fasta
+                cout << ">\n" << seq.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin)) << "\n";
+                //write_fasta({seq.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),seq.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
                 kmer++;
                 // Check if the current minimizer is still in this window
                 while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
