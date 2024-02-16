@@ -40,7 +40,7 @@ std::vector<std::string> get_available_variants_fmin(){
     return {"plain-matrix"};//, "rrr-matrix", "mef-matrix", "plain-split", "rrr-split", "mef-split", "plain-concat", "mef-concat", "plain-subsetwt", "rrr-subsetwt"};
 }
 std::vector<std::string> get_available_types(){
-    return {"rarest", "shortest", "optimal", "verify"};
+    return {"rarest", "shortest", "verify"};
 }
 
 void save_v(const std::string& filename, const sdsl::int_vector<>& v) {
@@ -355,8 +355,9 @@ int build_fmin(int argc, char** argv) {
         ("u,in-file",
             "The SPSS in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
             cxxopts::value<string>())
-        ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
-        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>())
+        ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string  + ". The latter two only provide some stats."
+                , cxxopts::value<string>()->default_value("rarest") )
+        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>()->default_value(std::to_string(1)))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage");
 

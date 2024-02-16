@@ -44,7 +44,6 @@ int64_t run_fmin_queries_streaming(reader_t& reader, out_stream_t& out, const Fi
         int64_t len = reader.get_next_read_to_buffer();
         if(len == 0) break;
         int64_t t0 = cur_time_micros();
-        //pair<vector<int64_t>, int64_t> final_pair = rarest_fmin_streaming_search(DNA_bitvectors, DNA_rs, sbwt, LCS, reader.read_buf, t, fmin_rs, global_offsets, ef_endpoints, Ustart_rs, found_kmers);
         FinimizerIndex::QueryResult result = index.search(reader.read_buf);
 
         //reverse compl
@@ -136,16 +135,10 @@ int search_fmin(int argc, char** argv){
 
     cxxopts::Options options(argv[0], "Query all Finimizers of all input reads.");
 
-    vector<string> types = get_available_types();
-    string all_types_string;
-    for (string type: types) all_types_string += " " + type;
-
-
     options.add_options()
         ("o,out-file", "Output filename, or stdout if not given.", cxxopts::value<string>())
         ("i,index-file", "Index filename prefix.", cxxopts::value<string>())
         ("q,query-file", "The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.", cxxopts::value<string>())
-        ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string,cxxopts::value<string>()->default_value("rarest"))
         ("h,help", "Print usage")
     ;
 
@@ -155,14 +148,6 @@ int search_fmin(int argc, char** argv){
     if (old_argc == 1 || opts.count("help")){
         std::cerr << options.help() << std::endl;
         exit(1);
-    }
-
-    // TODO add type, only rarest now
-    string type = opts["type"].as<string>();
-    if(std::find(types.begin(), types.end(), type) == types.end()){
-        cerr << "Error: unknown type: " << type << endl;
-        cerr << "Available types are:" << all_types_string << endl;
-        return 1;
     }
 
     // Interpret input file
