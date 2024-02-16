@@ -42,15 +42,12 @@ class PackedStrings{
 
         this->concat = sdsl::int_vector<2>(total_length);
         this->ends = sdsl::int_vector<>(strings.size(), 64 - __builtin_clzll(total_length));
-        
+
+        int64_t i = 0; // Position in concatenation
         int64_t ends_idx = 0; // Position in ends vector
         int64_t end = 0; // End of current unitig
-        int64_t unitigs_count = strings.size()/2;
-        int64_t i = 0; // Position in concatenation
-
         for(int64_t string_idx : permutation){
             const string& S = strings[string_idx];
-
             for(char c : S){
                 switch(c){
                     case 'A': concat[i++] = 0; break;
@@ -63,8 +60,9 @@ class PackedStrings{
             end += S.size();
             ends[ends_idx++] = end;
         }
+
     }
-    
+
     // Clears the given buffer and stores string with index string_idx into it,
     // including a null-terminator. Returns the length of the stored string,
     // not counting the null.
@@ -90,114 +88,50 @@ class PackedStrings{
     }
 
     // Returns pair (unitig_id, offset_in_unitig)
-    pair<int64_t, int64_t> global_offset_to_local_offset(int64_t global_offset, const int64_t unitig_rank, bool rc, int64_t k) const{
+    pair<int64_t, int64_t> global_offset_to_local_offset(int64_t global_offset) const{
         assert(global_offset >= 0 && global_offset < concat.size());
-        
-        // Binary search the smallest index in ends that has value larger than the global offset
-        // this cannot be 0
 
+        // Binary search the smallest index in ends that has value larger than the global offset
         int64_t ends_idx = std::upper_bound(ends.begin(), ends.end(), global_offset) - ends.begin();
-        int64_t global_start = (ends_idx == 0) ? 0 : ends[ends_idx-1];
-        int64_t local_offset = global_offset - global_start;
-        if (rc) {
-            int64_t unitig_len = ends[ends_idx] - global_start;
-            local_offset = unitig_len - local_offset - k;
-        } 
-        return {unitig_rank, local_offset};
+        int64_t global_start = (ends_idx == 0 ? 0 : ends[ends_idx-1]);
+
+        return {ends_idx, global_offset - global_start};
+
     }
 };
 
-// Returns packed unitigs + the Ustart bit vector + Rstart bit vector
+// Returns packed unitigs and the Ustart bit vector
 template <typename reader_t>
-tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > permute_unitigs(const plain_matrix_sbwt_t& sbwt, reader_t& f_reader, reader_t& r_reader){
+pair<PackedStrings, sdsl::bit_vector> permute_unitigs(const plain_matrix_sbwt_t& sbwt, reader_t& unitig_reader, const string& index_prefix){
     int64_t k = sbwt.get_k();
     vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> first_kmers; // pairs (kmer, unitig id)
-    vector<string> f_unitigs;
+    vector<string> unitigs;
 
-    // forward unitigs
     int64_t unitig_id = 0;
     while(true){
-        int64_t len = f_reader.get_next_read_to_buffer();
+        int64_t len = unitig_reader.get_next_read_to_buffer();
         if(len == 0) [[unlikely]] break;
 
-        f_unitigs.push_back(f_reader.read_buf);
-        first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(f_unitigs.back().c_str(), k), unitig_id});
+        unitigs.push_back(unitig_reader.read_buf);
+        first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(unitigs.back().c_str(), k), unitig_id});
 
         unitig_id++;
     }
 
-    // permutation for sorting forward unitigs
     std::sort(first_kmers.begin(), first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
-    vector<int64_t> f_permutation;
-    vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> sorted_first_kmers; // pairs (kmer, unitig id)    
-
-    unitig_id = 0;
-    for(auto& P : first_kmers){
-        f_permutation.push_back(P.second);
-        // create the correct first_kmers based on the sorted f unitigs
-        sorted_first_kmers.push_back({P.first,unitig_id++});
-    }
-
-    // rc unitigs
-    vector<string> r_unitigs;
-    while(true){
-        int64_t len = r_reader.get_next_read_to_buffer();
-        if(len == 0) [[unlikely]] break;
-        r_unitigs.push_back(r_reader.read_buf);
-        // todo later after they are sorted
-        //r_first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(unitigs.back().c_str(), k), unitig_id});
-    }
-
-    // Sort f and rc unitgs based on f_permutation
-    vector<string> sorted_f_unitigs;
-    vector<string> sorted_r_unitigs;
-    for(auto& P : f_permutation){
-        sorted_f_unitigs.push_back(f_unitigs[P]);
-        sorted_r_unitigs.push_back(r_unitigs[P]);
-    }
-    
-    // Sort rc unitigs based on first kmers
-    vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> r_first_kmers;
-    for (int u=0; u < sorted_r_unitigs.size(); u++){
-        r_first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(sorted_r_unitigs[u].c_str(), k), u});
-        // Add rc first kmers
-        sorted_first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(sorted_r_unitigs[u].c_str(), k), u + f_unitigs.size()});
-    }
-
-    // Sort rc unitigs first kmers to get r_permutation
-    std::sort(r_first_kmers.begin(), r_first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
-    sdsl::int_vector<> r_permutation(r_unitigs.size(), 0, 64 - __builtin_clzll(r_unitigs.size()));
-    
-    for(int64_t r = 0; r < r_first_kmers.size();r++){
-        r_permutation[r]=r_first_kmers[r].second;
-    }
-
-    // Concatenate f and r unitigs vectors
-    sorted_f_unitigs.insert(sorted_f_unitigs.end(), sorted_r_unitigs.begin(), sorted_r_unitigs.end());
-    // get a permutation to sort all unitigs together
-    
-    std::sort(sorted_first_kmers.begin(), sorted_first_kmers.end()); // Sorts by the kmer comparison operator, which is colexicographic
-   
     vector<int64_t> permutation;
-    vector <string> sorted_unitigs;
-    for(auto& P : sorted_first_kmers){
+    for(auto& P : first_kmers){
         permutation.push_back(P.second);
-        //sorted_unitigs.push_back(sorted_f_unitigs[P.second]);
     }
 
     sdsl::bit_vector Ustart(sbwt.number_of_subsets(), 0);
-    sdsl::bit_vector Rstart(sbwt.number_of_subsets(), 0);
-    for(int64_t i = 0; i < sorted_r_unitigs.size(); i++){ // sorted_r_unitigs only contains rc_unitigs, sorted_f_unitigs = sorted_f + sorted_r
-        int64_t f_colex = sbwt.search(sorted_f_unitigs[i].substr(0, k));
-        int64_t r_colex = sbwt.search(sorted_r_unitigs[i].substr(0, k));
-        if(f_colex == -1) cout << "Error: kmer " + sorted_f_unitigs[i].substr(0, k) + " in forward unitigs but not found in SBWT" << endl;
-        if(r_colex == -1) cout << "Error: kmer " + sorted_r_unitigs[i].substr(0, k) + " in rc unitigs but not found in SBWT" << endl;
-        Ustart[f_colex] = 1;
-        Ustart[r_colex] = 1;
-        Rstart[r_colex] = 1;
+    for(int64_t i = 0; i < unitigs.size(); i++){
+        int64_t colex = sbwt.search(unitigs[i].substr(0, k));
+        if(colex == -1) cout << "Error: kmer " + unitigs[i].substr(0, k) + " in unitigs but not found in SBWT" << endl;
+        Ustart[colex] = 1;
     }
 
-    return {PackedStrings(sorted_f_unitigs, permutation), Ustart, Rstart, r_permutation};
+    return {PackedStrings(unitigs, permutation), Ustart};
 
 
 }

@@ -61,7 +61,8 @@ char get_char_idx(char c){
 int64_t lookup_from_branch_dictionary(int64_t kmer_colex, int64_t k, const sdsl::rank_support_v5<>& Ustart_rs, const PackedStrings& unitigs){
     int64_t unitig_rank = Ustart_rs.rank(kmer_colex);
     assert(unitig_rank < unitigs.ends.size());
-    int64_t global_unitig_start = (unitig_rank > 0) ? unitigs.ends[unitig_rank-1] :  0;    
+    int64_t global_unitig_start = 0;
+    if(unitig_rank > 0) global_unitig_start = unitigs.ends[unitig_rank-1];
     return global_unitig_start + k - 1;
 }
 
@@ -175,7 +176,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                     w_fmin = all_fmin.front();
                 }
                 colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
-                finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});// end , I-start(colex)
+                finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});
                 if (best_Ustart.first >= get<3>(w_fmin)){ best[kmer_start+k-1] = optional<pair<int64_t, int64_t>>(best_Ustart);}
                 kmer_start++;
                 I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
@@ -185,7 +186,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
     return tie(colex_ranks, finimizers, best);
 }
 
-void print_finimizer_stats(const set<tuple<int64_t, int64_t, int64_t>>& finimizers, int64_t n_kmers, int64_t n_nodes, int64_t t){
+string print_finimizer_stats(const set<tuple<int64_t, int64_t, int64_t>>& finimizers, int64_t n_kmers, int64_t n_nodes, int64_t t){
     int64_t new_number_of_fmin = finimizers.size();
     int64_t sum_freq = 0;
     int64_t sum_len = 0;
@@ -194,12 +195,13 @@ void print_finimizer_stats(const set<tuple<int64_t, int64_t, int64_t>>& finimize
         sum_len += get<0>(x);
     }
 
-    string results = to_string(new_number_of_fmin) + "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq) / static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len) / static_cast<float>(new_number_of_fmin)) + "," + to_string(n_kmers);
+    string result = to_string(new_number_of_fmin) + "," + to_string(sum_freq) + "," + to_string(static_cast<float>(sum_freq) / static_cast<float>(new_number_of_fmin)) + "," + to_string(static_cast<float>(sum_len) / static_cast<float>(new_number_of_fmin)) + "," + to_string(n_kmers);
 
-    write_log(to_string(t) + "," + results, LogLevel::MAJOR);
+    write_log(to_string(t) + "," + result, LogLevel::MAJOR);
     write_log("#SBWT nodes: " + to_string(n_nodes) , LogLevel::MAJOR);
     write_log("#Distinct finimizers: " + to_string(new_number_of_fmin) , LogLevel::MAJOR);
     write_log("Sum of frequencies: " + to_string(sum_freq) , LogLevel::MAJOR);
     write_log("Avg frequency: " + to_string(static_cast<float>(sum_freq)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
     write_log("Avg length: " + to_string(static_cast<float>(sum_len)/static_cast<float>(new_number_of_fmin)) , LogLevel::MAJOR);
+    return result;
 }

@@ -37,27 +37,26 @@ private:
     FinimizerIndex(const FinimizerIndex& other) = delete;
     FinimizerIndex& operator=(const FinimizerIndex& other) = delete;
 
-    void add_to_query_result(const int64_t unitig_rank, bool rc, const int64_t global_kmer_end, QueryResult& answer) const{
+    void add_to_query_result(int64_t global_kmer_end, QueryResult& answer) const{
         int64_t global_kmer_start = global_kmer_end - sbwt->get_k() + 1;
-        pair<int64_t, int64_t> local_start = unitigs.global_offset_to_local_offset(global_kmer_start, unitig_rank, rc, sbwt->get_k());
+        pair<int64_t, int64_t> local_start = unitigs.global_offset_to_local_offset(global_kmer_start);
         answer.local_offsets.push_back(local_start);
         answer.n_found++;
     }
 
-    void walk_in_unitigs(const std::string& query, const PackedStrings& unitigs, int64_t global_kmer_end, QueryResult& answer, int64_t& kmer_end, const int64_t k, int64_t unitig_rank, bool rc, int64_t unitig_id) const{
-        
+    void walk_in_unitigs(const std::string& query, const PackedStrings& unitigs, int64_t global_kmer_end, QueryResult& answer, int64_t& kmer_end, const int64_t k) const{
+        //cout << "take a nice unitig walk" << endl;
+        int64_t unitig_id = answer.local_offsets.back().first;
         int64_t u_end = unitigs.ends[unitig_id]; // exlusive end
-        assert(u_end > global_kmer_end);
-       
-        int64_t max_match = std::min(u_end - global_kmer_end-1, (int64_t)((query.length()-kmer_end)-1));
-        if (max_match <= 0){return;}
+        int64_t max_match = std::min(u_end - global_kmer_end-1, (int64_t)(query.length()-kmer_end-1));
+
+        if (global_kmer_end > u_end or max_match <= 0){return;}
         kmer_end++;
         //convert part of the query to an int_vector<2>
         sdsl::int_vector<2> query_v(max_match);
         
         for (int64_t i = 0; i < max_match;) {
             char c = query[kmer_end+i];
-
             switch(c){
                 case 'A': query_v[i++] = 0; break;
                 case 'C': query_v[i++] = 1; break;
@@ -66,31 +65,34 @@ private:
                 default: throw std::runtime_error("Invalid character: " + c);
             }
         }
-        
+
         int64_t word_start = 0;
-        int64_t global_kmer_end_copy = global_kmer_end +1;
+        int64_t global_kmer_end_copy = global_kmer_end;
 
         while(max_match > 0){
             int word_len = std::min({(int64_t)32, max_match});
             uint64_t query_word = query_v.get_int(word_start, (word_len)*2); // word start = least significant bit (word_len+1)*2-1
-            uint64_t unitig_word = unitigs.concat.get_int(word_start + (global_kmer_end_copy)*2, (word_len)*2);
-            for (int64_t i = global_kmer_end_copy; i< global_kmer_end_copy + max_match;i++){
-        }
+            uint64_t unitig_word = unitigs.concat.get_int(word_start + (global_kmer_end_copy+1)*2, (word_len)*2);
+            //cerr << std::bitset<8 * sizeof(int64_t)>(query_word) << endl;
+            //cerr << std::bitset<8 * sizeof(int64_t)>(unitig_word) << endl;
+
+
             int64_t result = query_word ^ unitig_word;
-            
+            //cerr << std::bitset<8 * sizeof(int64_t)>(result) << endl;
+
             if (result){
                 int trailing_zeros = __builtin_ctzll(result);
                 for (int i = 0; i < trailing_zeros/2; i++){
                     global_kmer_end++;
-                    add_to_query_result(unitig_rank, rc, global_kmer_end, answer);
+                    add_to_query_result(global_kmer_end, answer);
                     kmer_end++; // keep track of how many kmers were found    
                 }
-                break; // No need to check further. A mismatch has been found. // exit the while loop
+                break; // No need to check further. A mismatch has been found.
             }
-            int trailing_zeros = (word_len)*2; // the whole word_len matches
+            int trailing_zeros = (word_len)*2;
             for (int i = 0; i < trailing_zeros/2; i++){
                 global_kmer_end++;
-                add_to_query_result(unitig_rank, rc, global_kmer_end, answer);
+                add_to_query_result(global_kmer_end, answer);
                 kmer_end++; // keep track of how many kmers were found    
             }
             max_match -= word_len;
@@ -111,11 +113,6 @@ public:
     sdsl::int_vector<> global_offsets;
     sdsl::bit_vector Ustart;
     sdsl::rank_support_v5<> Ustart_rs;
-    sdsl::select_support_mcl<> Ustart_ss;
-
-    sdsl::bit_vector Rstart;
-    sdsl::rank_support_v5<> Rstart_rs;
-    sdsl::int_vector<> Rpermutation;
 
     FinimizerIndex() {}
 
@@ -155,47 +152,31 @@ public:
                 int64_t global_kmer_end;
                 int64_t finimizer_end = finimizers_ends_colex[kmer_end].value().first;
                 
+                //cout << "Finimizer ends at: " << finimizer_end << endl; //<< " with len " << shortest_unique_lengths[finimizer_end].value() << endl;
+                //optional<pair<int64_t, int64_t>> rightmost_branch_end = get_rightmost_Ustart(query, kmer_end, finimizer_end, finimizers_ends_colex, sbwt, Ustart);
                 optional<pair<int64_t, int64_t>> rightmost_branch_end = rightmost_Ustart[kmer_end];
-                // Get rightmost Rstart
-                int64_t colex = 0 ;
-                int64_t global_unitig_rank = 0;
-                int64_t unitig_rank = 0; // does not include rc unitigs
-                bool rc = false;
                 if(rightmost_branch_end.has_value()) {
                     // Look up from the branch dictionary
                     int64_t p = rightmost_branch_end.value().first;
-                    colex = rightmost_branch_end.value().second; 
-                    // Get the global offset of the end of the k-mer
+                    int64_t colex = rightmost_branch_end.value().second; 
+                    // Get the global off set of the end of the k-mer
                     global_kmer_end = lookup_from_branch_dictionary(colex, k, Ustart_rs, unitigs);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
-                    
-                    global_unitig_rank = Ustart_rs.rank(colex);
-                    assert(global_unitig_rank < unitigs.ends.size());
-                                    
                 } else {
                     //Look up from Finimizer dictionary
                     int64_t p = finimizer_end;
-                    colex = finimizers_ends_colex[kmer_end].value().second;
+                    //int64_t colex = shortest_unique_colex_ranks[p].value();
+                    int64_t colex = finimizers_ends_colex[kmer_end].value().second;
+
                     global_kmer_end = lookup_from_finimizer_dictionary(colex, fmin_rs, global_offsets);
                     global_kmer_end += kmer_end - p; // Shift to the right place in the unitig
-                    // Find unitig rank
-                    global_unitig_rank = std::upper_bound(unitigs.ends.begin(), unitigs.ends.end(), global_kmer_end-k+1) - unitigs.ends.begin();
-                    colex = Ustart_ss(global_unitig_rank+1);
-                    
-    
                 }
-                // A kmer has been found
-                // Check if it is found in a rc unitig
-                rc = Rstart[colex];
-                const int64_t rc_unitig_rank = Rstart_rs.rank(colex);
-                assert(rc_unitig_rank < unitigs.ends.size());
-            
-                unitig_rank = (rc)? Rpermutation[rc_unitig_rank] : global_unitig_rank - rc_unitig_rank;
-                
-                add_to_query_result(unitig_rank, rc, global_kmer_end, answer);
+                // A kmer has been found 
+                add_to_query_result(global_kmer_end, answer);
                 if ((kmer_end + 1)< query.size()){
-                    walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k, unitig_rank, rc, global_unitig_rank);
-                }  
+                    walk_in_unitigs(query, unitigs, global_kmer_end, answer, kmer_end, k);
+                }
+                
             } else { 
                 answer.local_offsets.push_back({-1, -1});
             } 
@@ -204,50 +185,33 @@ public:
     }
 
     void serialize(const string& index_prefix) const {
-        sbwt->serialize(index_prefix + ".sbwt");
-
-        std::ofstream LCS_out(index_prefix + ".LCS.sdsl");
-        sdsl::serialize(*LCS, LCS_out);
-
-        std::ofstream packed_unitigs_out(index_prefix + ".packed_unitigs.sdsl");
-        sdsl::serialize(unitigs.concat, packed_unitigs_out);
-
-        std::ofstream unitig_endpoints_out(index_prefix + ".unitig_endpoints.sdsl");
-        sdsl::serialize(unitigs.ends, unitig_endpoints_out);
+        std::ofstream global_offsets_out(index_prefix + ".O.sdsl");
+        sdsl::serialize(global_offsets, global_offsets_out);
 
         std::ofstream fmin_out(index_prefix + ".FBV.sdsl");
         sdsl::serialize(fmin, fmin_out);
 
-        std::ofstream global_offsets_out(index_prefix + ".O.sdsl");
-        sdsl::serialize(global_offsets, global_offsets_out);
+        std::ofstream packed_unitigs_out(index_prefix + ".packed_unitigs.sdsl");
+        sdsl::serialize(unitigs.concat, packed_unitigs_out);
+        
+        std::ofstream unitig_endpoints_out(index_prefix + ".unitig_endpoints.sdsl");
+        sdsl::serialize(unitigs.ends, unitig_endpoints_out);
 
         std::ofstream Ustart_out(index_prefix + ".Ustart.sdsl");
         sdsl::serialize(Ustart, Ustart_out);
 
-        std::ofstream Rstart_out(index_prefix + ".Rstart.sdsl");
-        sdsl::serialize(Rstart, Rstart_out);
+        std::ofstream LCS_out(index_prefix + ".LCS.sdsl");
+        sdsl::serialize(*LCS, LCS_out);
 
-        std::ofstream Rpermutation_out(index_prefix + ".R.sdsl");
-        sdsl::serialize(Rpermutation, Rpermutation_out);
+        sbwt->serialize(index_prefix + ".sbwt");
     }
 
     void load(const string& index_prefix) {
-
-        sbwt = make_unique<plain_matrix_sbwt_t>();
-        sbwt->load(index_prefix + ".sbwt");
 
         LCS = make_unique<sdsl::int_vector<>>();
         ifstream LCS_in(index_prefix + ".LCS.sdsl");
         sdsl::load(*LCS, LCS_in);
         std::cerr<< "LCS_file loaded"<<std::endl;
-
-        std::ifstream packed_unitigs_in(index_prefix + ".packed_unitigs.sdsl");
-        sdsl::load(unitigs.concat, packed_unitigs_in);
-        std::cerr << "unitigs loaded" << std::endl;
-
-        std::ifstream unitig_endpoints_in(index_prefix + ".unitig_endpoints.sdsl");
-        sdsl::load(unitigs.ends, unitig_endpoints_in);
-        std::cerr << "unitig endpoints loaded" << std::endl;
 
         ifstream fmin_bv_in(index_prefix + ".FBV.sdsl");
         sdsl::load(fmin, fmin_bv_in);
@@ -258,20 +222,21 @@ public:
         sdsl::load(global_offsets, global_offsets_in);
         std::cerr<< "offsets loaded"<<std::endl;
 
+        std::ifstream packed_unitigs_in(index_prefix + ".packed_unitigs.sdsl");
+        sdsl::load(unitigs.concat, packed_unitigs_in);
+        std::cerr << "unitigs loaded" << std::endl;
+
+        std::ifstream unitig_endpoints_in(index_prefix + ".unitig_endpoints.sdsl");
+        sdsl::load(unitigs.ends, unitig_endpoints_in);
+        std::cerr << "unitig endpoints loaded" << std::endl;
+
         std::ifstream Ustart_in(index_prefix + ".Ustart.sdsl");
         sdsl::load(Ustart, Ustart_in);
         sdsl::util::init_support(Ustart_rs, &Ustart);
-        sdsl::util::init_support(Ustart_ss, &Ustart);
         std::cerr << "Ustart loaded" << std::endl;
 
-        std::ifstream Rstart_in(index_prefix + ".Rstart.sdsl");
-        sdsl::load(Rstart, Rstart_in);
-        sdsl::util::init_support(Rstart_rs, &Rstart);
-        std::cerr << "Rstart loaded" << std::endl;
-
-        ifstream Rpermutation_in(index_prefix + ".R.sdsl");
-        sdsl::load(Rpermutation, Rpermutation_in);
-        std::cerr<< "Rpermutation loaded"<<std::endl;
+        sbwt = make_unique<plain_matrix_sbwt_t>();
+        sbwt->load(index_prefix + ".sbwt");
 
     }
 
@@ -286,10 +251,6 @@ public:
         total += sdsl::size_in_bytes(unitigs.ends);
         total += sdsl::size_in_bytes(Ustart);
         total += sdsl::size_in_bytes(Ustart_rs);
-        total += sdsl::size_in_bytes(Ustart_ss);
-        total += sdsl::size_in_bytes(Rstart);
-        total += sdsl::size_in_bytes(Rstart_rs);
-        total += sdsl::size_in_bytes(Rpermutation);
 
         sbwt::SeqIO::NullStream ns;
         total += sbwt->serialize(ns);
@@ -309,7 +270,7 @@ public:
 
     // Takes ownership of sbwt and LCS
     template<typename reader_t>
-    FinimizerIndexBuilder(unique_ptr<plain_matrix_sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, reader_t& f_reader, reader_t& r_reader) {
+    FinimizerIndexBuilder(unique_ptr<plain_matrix_sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, reader_t& reader) {
         index = make_unique<FinimizerIndex>();
         this->sbwt = move(sbwt); // Take ownership
         this->LCS = move(LCS); // Take ownership
@@ -319,15 +280,13 @@ public:
         //sdsl::bit_vector fmin_found(n_nodes, 0);
         sdsl::int_vector fmin_found(n_nodes, 0);
         
-        vector<uint64_t> global_offsets;
+        vector<uint32_t> global_offsets; // TODO: -> 64 bits
         global_offsets.reserve(n_nodes);
         global_offsets.resize(n_nodes, 0);
         
-        tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<>> unitig_data = permute_unitigs(*(this->sbwt), f_reader, r_reader);
-        PackedStrings& unitigs = get<0>(unitig_data);
-        sdsl::bit_vector& Ustart = get<1>(unitig_data);
-        sdsl::bit_vector& Rstart = get<2>(unitig_data);
-        sdsl::int_vector<>& Rpermutation = get<3>(unitig_data);
+        pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(*(this->sbwt), reader, "unused_parameter"); // TODO: remove the unused parameter 
+        PackedStrings& unitigs = unitig_data.first;
+        sdsl::bit_vector& Ustart = unitig_data.second;
 
         set<tuple<int64_t, int64_t, int64_t>>  finimizers;
         int64_t total_len = 0;
@@ -335,10 +294,9 @@ public:
         for(int64_t i = 0; i < unitigs.number_of_strings(); i++){
             int64_t len = unitigs.get(i, unitig_buf);
             set<tuple<int64_t, int64_t, int64_t>> new_search = add_sequence(unitig_buf.data(), fmin_bv, fmin_found, global_offsets, total_len);
-            total_len += len;
+            total_len += len; 
             finimizers.insert(new_search.begin(), new_search.end());
         }
-        std::cerr << "All unitigs have been scanned"<< endl;
 
         sdsl::int_vector<> packed_global_offsets(finimizers.size(), 0, 64 - __builtin_clzll(*std::max_element(global_offsets.begin(), global_offsets.end())));
         
@@ -356,15 +314,12 @@ public:
         index->fmin_rs = sdsl::rank_support_v5<>(&(index->fmin));
         index->global_offsets = std::move(packed_global_offsets); // Transfer ownership
         index->Ustart = std::move(Ustart); // Transfer ownership
-        index->Ustart_rs = sdsl::rank_support_v5<>(&(index->Ustart));
-        index->Ustart_ss = sdsl::select_support_mcl<>(&(index->Ustart));
-        index->Rstart = std::move(Rstart); // Transfer ownership
-        index->Rstart_rs = sdsl::rank_support_v5<>(&(index->Rstart));
-        index->Rpermutation = std::move(Rpermutation); // Transfer ownership
+        index->Ustart_rs = sdsl::rank_support_v5<>(&(index->Ustart)); 
+
     }
 
     // TODO: 32 bits for global offsets might not be enough
-    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::int_vector<>& fmin_found, vector<uint64_t>& global_offsets, const int64_t unitig_start) {
+    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::int_vector<>& fmin_found, vector<uint32_t>& global_offsets, const int64_t unitig_start) {
         const int64_t n_nodes = sbwt->number_of_subsets();
         const int64_t k = sbwt->get_k();
         const vector<int64_t>& C = sbwt->get_C_array();
@@ -387,8 +342,8 @@ public:
         // Start is always < k as start <= end and end <k
         // if start == end than the frequency higher than t
         for (end = 0; end < str_len; end++) {
-            c = static_cast<char>(seq[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
             // TODO we don't need to check the char here anymore 
+            c = static_cast<char>(seq[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
             char_idx = get_char_idx(c);
             if (char_idx == -1) [[unlikely]]{
                std::cerr << "Error: unknown character: " << c << endl;
@@ -425,9 +380,11 @@ public:
                 if (fmin_found[get<2>(w_fmin)] == 0 or fmin_found[get<2>(w_fmin)]< get<3>(w_fmin)){ // if the finimizer has been found before in a full kmer
                     fmin_bv[get<2>(w_fmin)]=1;
                     fmin_found[get<2>(w_fmin)] = get<3>(w_fmin);
-                    global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
-                    // TODO We could add a bit to say if the unitig is forward or rc
 
+                    if ((unitig_start + get<3>(w_fmin))> UINT32_MAX){
+                        std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
+                    }
+                    global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
                 }
                 // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
                 kmer++;

@@ -12,11 +12,11 @@
 #include "backward.hpp"
 
 string temp_dir = "tests_temp";
-vector<string> paper_example_unitigs = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT"};
-//                                          1           2           0
-//vector<string> paper_example_queries = {"TAAA"};
 
-vector<string> paper_example_queries = {"ACAGGTA", "GTAGGAAA", "GTAAGTCT", "TAGGATTTTTTAAGTCTA"};
+vector<string> paper_example_unitigs = {"GTAAGTCT", "AGGAAA", "ACAGG", "GTAGG", "AGGTA"};
+//                                          1           2           0
+
+vector<string> paper_example_queries = {"AAGTAA"};
 
 using namespace std;
 using namespace std::filesystem;
@@ -65,12 +65,15 @@ void test_shortest_unique_construction(){
 
     sdsl::int_vector<> true_LCS = {0,0,1,2,2,1,1,1,0,1,0,2,2,1,3,0,1,2};
     sdsl::util::bit_compress(true_LCS);
-    sdsl::int_vector<2> true_unitig_concat = {2,3,0,0,2,3,1,3, 0,1,0,2,2,3,0, 2,3,0,2,2,0,0,0};
-    sdsl::int_vector<> true_unitig_ends = {8,15,23};
+    //                                        GTAAGTCT,          AGGAAA,       ACAGG,     GTAGG, AGGTA}
+    sdsl::int_vector<2> true_unitig_concat = {2,3,0,0,2,3,1,3, 0,2,2,0,0,0, 0,1,0,2,2, 2,3,0,2,2, 0,2,2,3,0};
+        //                                        GTAAGTCT,    ACAGG,     GTAGG, AGGTA} AGGAAA,
+
+    sdsl::int_vector<> true_unitig_ends = {8,14,19,24,29};
     sdsl::bit_vector true_fmin = {0,0,0,0,0,1,1,1,0,1,1,0,0,0,0,0,0,1}; // B
-    sdsl::int_vector<> true_global_offsets = {10,20,14,6,4,13};
+    sdsl::int_vector<> true_global_offsets = {16,11,28,6,4,27};
     sdsl::util::bit_compress(true_global_offsets);
-    sdsl::bit_vector true_Ustart =  {0,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0};
+    sdsl::bit_vector true_Ustart =  {0,0,0,0,1,0,1,0,0,0,0,1,1,0,0,0,0,1};
 
     assert_equal(true_LCS, *index->LCS);
     assert_equal(true_unitig_concat, index->unitigs.concat);
@@ -81,13 +84,9 @@ void test_shortest_unique_construction(){
 }
 
 void test_shortest_unique_queries(){
-    vector<vector<pair<int64_t, int64_t>>> true_local_offsets = {{{1,0},{1,1},{1,2},{1,3}}, 
-                                                                 {{2,0},{2,1},{2,2},{2,3},{2,4}}, 
-                                                                 {{0,0},{0,1},{0,2},{0,3},{0,4}},
-                                                                 {{2,1}, {2,2}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {-1,-1}, {0,1}, {0,2}, {0,3}, {0,4}, {-1,-1}}};// {unitig_id , local kmer_start}
-
+    vector<vector<pair<int64_t, int64_t>>> true_local_offsets = {{{0,2},{-1,-1},{0,0}}};
     // TAGGATTTTTTAAGTCTA
-    vector<int64_t> true_hit_counts = {4,5,5,6};
+    vector<int64_t> true_hit_counts = {2};
     
     unique_ptr<FinimizerIndex> index = build_example_index();
 
