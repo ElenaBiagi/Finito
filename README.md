@@ -56,7 +56,7 @@ Usage:
 Then, you can build the Finimizers index with:
 
 ```
-./benchmark build-fmin -o out-file -f unitigs.fna -r rev_unitigs.fna -i index.sbwt [--lcs LCS.sdsl] [-t 1] [--type rarest] 
+./benchmark build-fmin -o <finimizer-index> -i index.sbwt -f unitigs.fna -r rev_unitigs.fna [--lcs LCS.sdsl] [-t 1] [--type rarest] 
 ```
 ```
 Usage:
@@ -69,9 +69,11 @@ build-fmin [OPTION...]
                         --out-file is also interpreted as a list of output files in the same manner, one line for each input 
                         file.
   -r, --r-file arg      reverse complement of f-file
-      --type arg        Available types:  rarest
-                        (default: rarest)
-  -t arg                Maximum finimizer frequency
+      --type arg        Decide which streaming search type you prefer. 
+                        Available types:  rarest shortest verify. The 
+                        latter two only provide some stats. (default: 
+                        rarest)
+  -t arg                Maximum finimizer frequency. (default: 1)
       --lcs arg         Provide in input the LCS file if available. 
                         (default: "")
   -h, --help            Print usage
@@ -81,7 +83,7 @@ build-fmin [OPTION...]
 
 You can query $k$-mer in the unitigs with:
 ```
-./benchmark search-fmin -o <outfile>  -q <query-file.fa> -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
+./benchmark search-fmin -o <outfile>  -q <query-file.fa> -i <finimizer-index>
 ```
 ```
 Usage:
@@ -89,17 +91,12 @@ Usage:
 
   -o, --out-file arg    Output filename, or stdout if not given.
   -i, --index-file arg  Index filename prefix.
-  -q, --query-file arg  The query in FASTA or FASTQ format, possibly 
-                        gzipped. Multi-line FASTQ is not supported. If the 
-                        file extension is .txt, this is interpreted as a 
-                        list of query files, one per line. In this case, 
-                        --out-file is also interpreted as a list of output 
-                        files in the same manner, one line for each input 
+  -q, --query-file arg  The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
+                        file extension is .txt, this is interpreted as a list of query files, one per line. In this case, 
+                        --out-file is also interpreted as a list of output files in the same manner, one line for each input 
                         file.
-
   -h, --help            Print usage
 ```
-type has to be the same for both commands.
 Support for lookup queries is currently available only for "rarest".
 
 ### Disjoint Spectrum Preserving String Set (DSPSS)
