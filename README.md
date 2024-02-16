@@ -19,7 +19,7 @@ make -j4
 
 cd ../..
 ```
-The select the branch: *main*:sigle index, *double*: double index (+reverse complements).
+Select the desired branch: *main*:sigle index, *double*: double index (+reverse complements).
 The following instructions are for the main branch.
 ```
 make benchmark --always-make CXX=g++-10
