@@ -24,7 +24,7 @@ The following instructions are for the main branch.
 ```
 make benchmark --always-make CXX=g++-10
 ```
-## Index construction
+## Single index construction
 
 The code takes a plain-matrix SBWT file as input generated from canonical unitigs. You can generate one by running:
 
