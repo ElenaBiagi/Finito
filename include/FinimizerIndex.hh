@@ -280,7 +280,7 @@ public:
         //sdsl::bit_vector fmin_found(n_nodes, 0);
         sdsl::int_vector fmin_found(n_nodes, 0);
         
-        vector<uint32_t> global_offsets; // TODO: -> 64 bits
+        vector<uint64_t> global_offsets;
         global_offsets.reserve(n_nodes);
         global_offsets.resize(n_nodes, 0);
         
@@ -318,8 +318,7 @@ public:
 
     }
 
-    // TODO: 32 bits for global offsets might not be enough
-    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::int_vector<>& fmin_found, vector<uint32_t>& global_offsets, const int64_t unitig_start) {
+    set<tuple<int64_t, int64_t, int64_t>> add_sequence(const std::string& seq, sdsl::bit_vector& fmin_bv, sdsl::int_vector<>& fmin_found, vector<uint64_t>& global_offsets, const int64_t unitig_start) {
         const int64_t n_nodes = sbwt->number_of_subsets();
         const int64_t k = sbwt->get_k();
         const vector<int64_t>& C = sbwt->get_C_array();
@@ -381,7 +380,7 @@ public:
                     fmin_bv[get<2>(w_fmin)]=1;
                     fmin_found[get<2>(w_fmin)] = get<3>(w_fmin);
 
-                    if ((unitig_start + get<3>(w_fmin))> UINT32_MAX){
+                    if ((unitig_start + get<3>(w_fmin))> UINT64_MAX){
                         std::cerr<< "ISSUE: global offset exceedes the allowed bit range." << std::endl;
                     }
                     global_offsets[get<2>(w_fmin)]= unitig_start + get<3>(w_fmin);
