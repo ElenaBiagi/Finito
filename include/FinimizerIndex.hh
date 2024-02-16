@@ -439,7 +439,7 @@ public:
                 }
                 // write_fasta({input.substr(kmer,k) + ' ' + to_string(get<0>(w_fmin)),input.substr(get<3>(w_fmin)-get<1>(w_fmin)+1,get<1>(w_fmin))},writer);
                 kmer++;
-                // Check if the current minimizer is still in this window
+                // Check if the current minimizer is still in the next window
                 while (get<3>(w_fmin)- get<1>(w_fmin)+1 < kmer) { // start
                     all_fmin.pop_front();
                     w_fmin = (all_fmin.size()==0) ? tuple<int64_t, int64_t, int64_t, int64_t> {n_nodes,k+1,kmer+1,kmer+k} : all_fmin.front();
