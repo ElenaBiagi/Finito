@@ -1,4 +1,4 @@
-# Finimizers
+# Finito
 This is the code for the paper **Finimizers: Variable-length bounded-frequency minimizers for $k$-mer sets** by J. N. Alanko, E. Biagi,  S. J. Puglisi. 
 
 ### Shortest Unique Finimizers
