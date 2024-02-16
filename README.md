@@ -35,7 +35,7 @@ The code takes a plain-matrix SBWT file as input generated from canonical unitig
 Then, you can build the Finimizers index with:
 
 ```
-./benchmark build-fmin -o <finimizer-index> -u <unitigs.fna> -i <index.sbwt> [--lcs LCS.sdsl] [-t 1] [--type rarest] 
+./benchmark build-fmin -o <finimizer-index>  -i <index.sbwt> -u <unitigs.fna> [--lcs LCS.sdsl] [-t 1] [--type rarest] 
 ```
 ```
 Usage:
@@ -59,7 +59,7 @@ build-fmin [OPTION...]
 
 You can query $k$-mer in the unitigs with:
 ```
-./benchmark search-fmin -o <out-file>  -i <finimizer-index> [--lcs LCS.sdsl]  -q <query-file.fa> 
+./benchmark search-fmin -o <out-file>  -i <finimizer-index> -q <query-file.fa> 
 ```
 ```
 Usage:
