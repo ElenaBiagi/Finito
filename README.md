@@ -19,7 +19,7 @@ make -j4
 
 cd ../..
 ```
-The select the branch: *main*:sigle index, *double*: double index (+reverse complements).
+Then select the branch: *main*:sigle index, *double*: double index (+reverse complements).
 The following instructions are for the double branch.
 ```
 git checkout double
