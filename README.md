@@ -25,7 +25,7 @@ The following instructions are for the double branch.
 git checkout double
 make benchmark --always-make CXX=g++-10
 ```
-## Index construction
+## Double index construction
 
 The code takes a plain-matrix sbwt file as input generated from canonical unitigs. You can generate one by running:
 
