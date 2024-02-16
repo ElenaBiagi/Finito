@@ -321,7 +321,7 @@ int build_fmin(int argc, char** argv) {
             cxxopts::value<string>())
         ("r,r-file", "reverse complement of f-file", cxxopts::value<string>())
         ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
-        ("t", "Maximum finimizer frequency", cxxopts::value<int>()->default_value("1"))
+        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>()->default_value(std::to_string(1)))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage");
 
@@ -337,6 +337,7 @@ int build_fmin(int argc, char** argv) {
     // forward unitigs
     string f_file = opts["f-file"].as<string>();
     vector<string> f_files;
+
     //TODO remove multifiles
     bool multi_file = f_file.size() >= 4 && f_file.substr(f_file.size() - 4) == ".txt";
     if(multi_file){
@@ -349,6 +350,7 @@ int build_fmin(int argc, char** argv) {
     // reverse unitigs
     string r_file = opts["r-file"].as<string>();
     vector<string> r_files;
+
     //TODO remove multifiles
     multi_file = r_file.size() >= 4 && r_file.substr(r_file.size() - 4) == ".txt";
     if(multi_file){
@@ -357,7 +359,6 @@ int build_fmin(int argc, char** argv) {
         r_files = {r_file};
     }
     for(string file : r_files) check_readable(file);
-
 
     string out_prefix = opts["out-file"].as<string>();
 
@@ -396,7 +397,6 @@ int build_fmin(int argc, char** argv) {
         load_v(LCS_file, *LCS);
         std::cerr<< "LCS_file loaded" << std::endl;
         fmin_search(f_files, r_files, out_prefix, move(sbwt), move(LCS), t, type);
-
     }
     return 0;
 }
