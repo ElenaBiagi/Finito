@@ -1,4 +1,6 @@
-# Finimizers
+# Finito
+This is the code for the paper **Finimizers: Variable-length bounded-frequency minimizers for $k$-mer sets** by J. N. Alanko, E. Biagi,  S. J. Puglisi. 
+
 ### Shortest Unique Finimizers
 Let $G$ be the de Bruijn graph of a set of $k$-mers $R$, $t \geq 1$ be an integer, $X$ be a $k$-mer, and $Y$ be a substring of $X$. We say $Y$ is a **shortest $t$-finimizer** of $X$ with respect to the $k$-mer set $R$ if $Y$ has at most $t$ occurrences in $G$ and there does not exist a shorter substring of $X$ with at most $t$ occurrences in $G$. If $t = 1$ then we say $Y$ is a _shortest-unique finimizer_ of $X$.
 
@@ -16,40 +18,24 @@ cmake .. -DCMAKE_C_COMPILER=$(which gcc-10) -DCMAKE_CXX_COMPILER=$(which g++-10)
 make -j4
 
 cd ../..
+```
+Select the desired branch: *main*:sigle index, *double*: double index (+reverse complements).
+The following instructions are for the main branch.
+```
 make benchmark --always-make CXX=g++-10
 ```
-## Index construction
+## Single index construction
 
-The code takes a plain-matrix sbwt file as input generated from canonical unitigs. You can generate one by running:
-
-```
-./SBWT/build/bin/sbwt build -i SBWT/example_data/coli3.fna -o index.sbwt -k 31 --add-reverse-complements
-```
-
-You also need to create a file with the reverse complement of the unitigs.
+The code takes a plain-matrix SBWT file as input generated from canonical unitigs. You can generate one by running:
 
 ```
-./benchmark reverse -i unitigs.fna -o rev_unitigs.fna
-```
-
-```
-Usage:
-  reverse -i <input> -o <output>
-
-  -i, --in-file arg   The SPSS in FASTA or FASTQ format, possibly gzipped. 
-                      Multi-line FASTQ is not supported. If the file 
-                      extension is .txt, this is interpreted as a list of 
-                      query files, one per line. In this case, --out-file 
-                      is also interpreted as a list of output files in the 
-                      same manner, one line for each input file.
-  -o, --out-file arg  Reverse complement files. (default: out.fna)
-  -h, --help          Print usage
+./SBWT/build/bin/sbwt build -i <unitigs.fna> -o <index.sbwt> -k <31> 
 ```
 
 Then, you can build the Finimizers index with:
 
 ```
-./benchmark build-fmin -o out-file -f unitigs.fna -r rev_unitigs.fna -i index.sbwt [--lcs LCS.sdsl] [-t 1] [--type rarest] 
+./benchmark build-fmin -o <finimizer-index>  -i <index.sbwt> -u <unitigs.fna> [--lcs LCS.sdsl] [-t 1] [--type rarest] 
 ```
 ```
 Usage:
@@ -57,14 +43,13 @@ build-fmin [OPTION...]
 
   -o, --out-file arg    Output index filename prefix.
   -i, --index-file arg  SBWT file. This has to be a binary matrix.
-  -f, --f-file arg      The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
+  -u, --in-file arg      The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
                         file extension is .txt, this is interpreted as a list of query files, one per line. In this case, 
                         --out-file is also interpreted as a list of output files in the same manner, one line for each input 
                         file.
-  -r, --r-file arg      reverse complement of f-file
-      --type arg        Available types:  rarest
-                        (default: rarest)
-  -t arg                Maximum finimizer frequency
+      --type arg        Decide which streaming search type you prefer. 
+                        Available types:  rarest shortest verify. The latter two only provide some stats. (default: rarest)
+  -t arg                Maximum finimizer frequency (default: 1)
       --lcs arg         Provide in input the LCS file if available. 
                         (default: "")
   -h, --help            Print usage
@@ -74,7 +59,7 @@ build-fmin [OPTION...]
 
 You can query $k$-mer in the unitigs with:
 ```
-./benchmark search-fmin -o <outfile>  -q <query-file.fa> -i index.sbwt [--lcs LCS.sdsl] -f fmin_bv --unitigs-v fmin_unitigs -t freq 
+./benchmark search-fmin -o <out-file>  -i <finimizer-index> -q <query-file.fa> 
 ```
 ```
 Usage:
@@ -82,18 +67,13 @@ Usage:
 
   -o, --out-file arg    Output filename, or stdout if not given.
   -i, --index-file arg  Index filename prefix.
-  -q, --query-file arg  The query in FASTA or FASTQ format, possibly 
-                        gzipped. Multi-line FASTQ is not supported. If the 
-                        file extension is .txt, this is interpreted as a 
-                        list of query files, one per line. In this case, 
-                        --out-file is also interpreted as a list of output 
-                        files in the same manner, one line for each input 
+  -q, --query-file arg  The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
+                        file extension is .txt, this is interpreted as a list of query files, one per line. In this case, 
+                        --out-file is also interpreted as a list of output files in the same manner, one line for each input 
                         file.
-
   -h, --help            Print usage
 ```
-type has to be the same for both commands.
-Support for lookup queries is currently available only for "rarest".
+Support for localization queries is currently available only for "rarest".
 
 ### Disjoint Spectrum Preserving String Set (DSPSS)
 A DSPSS is required as input to build the SBWT index. You can obtain canonical unitigs or eulertigs using [ggcat](https://github.com/algbio/ggcat).
