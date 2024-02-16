@@ -18,6 +18,11 @@ cmake .. -DCMAKE_C_COMPILER=$(which gcc-10) -DCMAKE_CXX_COMPILER=$(which g++-10)
 make -j4
 
 cd ../..
+```
+The select the branch: *main*:sigle index, *double*: double index (+reverse complements).
+The following instructions are for the double branch.
+```
+git checkout double
 make benchmark --always-make CXX=g++-10
 ```
 ## Index construction
