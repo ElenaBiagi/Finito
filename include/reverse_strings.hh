@@ -30,7 +30,6 @@
 #include "lcs_basic_parallel_algorithm.hpp"
 #include "common.hh"
 #include "sbwt/SeqIO.hh"
-// todo check what is not needed
 
 using namespace std;
 using namespace sbwt;
