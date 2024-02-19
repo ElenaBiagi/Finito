@@ -133,7 +133,6 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plai
     pair<int64_t, int64_t> I = {0, n_nodes - 1};
     int64_t I_start;
     char c;
-    char char_idx;
     // window
     for (int64_t i = 0; i <= str_len - k; i++) {
         w_fmin = {k + 1, n_nodes, n_nodes, str_len}; // {len, freq, I start, start}
@@ -143,7 +142,6 @@ set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plai
             // ending pos for the window
             for (int64_t end = start; end < k + i; end++) {
                 c = static_cast<char>(input[end] &~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-                char_idx = get_char_idx(c);
                 I = sbwt.update_sbwt_interval(&c, 1, I);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
@@ -178,22 +176,15 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
     int64_t I_start;
     tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
     char c;
-    char char_idx;
     for (end = 0; end < str_len; end++) {
         c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
-        char_idx = get_char_idx(c);
-        if (char_idx == -1) [[unlikely]]{
-           std::cerr << "Error: unknown character: " << c << endl;
-           std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
-            return {};
-        } else {
-            //update the sbwt INTERVAL
-            I = sbwt.update_sbwt_interval(&c, 1, I);
-            freq = (I.second - I.first + 1);
-            I_start = I.first;
+        //update the sbwt INTERVAL
+        I = sbwt.update_sbwt_interval(&c, 1, I);
+        freq = (I.second - I.first + 1);
+        I_start = I.first;
             
-            if (freq <= t){ // 1. rarest
-                while (freq <= t){ // 2. shortest
+        if (freq <= t){ // 1. rarest
+            while (freq <= t){ // 2. shortest
                 curr_substr = {end - start + 1,freq, I_start, end};
                 //all_fmin.insert(curr_substr); // insert every unique substr
 
@@ -203,18 +194,16 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
-                }
-                if (w_fmin > curr_substr) {
-                    all_fmin.clear();
-                    w_fmin = curr_substr;
-                } else{
-                    while (all_fmin.back() > curr_substr) {
-                        all_fmin.pop_back();
-                    }
-                }
-                all_fmin.push_back(curr_substr);
- 
             }
+            if (w_fmin > curr_substr) {
+                all_fmin.clear();
+                w_fmin = curr_substr;
+            } else{
+                while (all_fmin.back() > curr_substr) {
+                        all_fmin.pop_back();
+                }
+            }
+            all_fmin.push_back(curr_substr);
         }
         if (end >= k -1 ){
             if (!fmin_found[get<2>(w_fmin)]){ // if the kmer never been found before

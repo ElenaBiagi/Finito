@@ -284,7 +284,7 @@ public:
         global_offsets.reserve(n_nodes);
         global_offsets.resize(n_nodes, 0);
         
-        pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(*(this->sbwt));
+        pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(*(this->sbwt), reader);
         PackedStrings& unitigs = unitig_data.first;
         sdsl::bit_vector& Ustart = unitig_data.second;
 
