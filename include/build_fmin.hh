@@ -79,25 +79,7 @@ void write_fasta(const pair<string,string>& p, writer_t& out){
     out.write(&newline, 1);
 }
 
-
-void write_fasta_old(const pair<string,string>& sequencePair, string& filename) {
-    std::ofstream outputFile(filename + ".fa", std::ios_base::app);
-    outputFile << ">" + sequencePair.first + '\n'; // Write sequence ID
-    outputFile << sequencePair.second + '\n'; // Write sequence data
-    outputFile.close();
-}
-
-void write_str_v(const vector<string>& myVector, const string& filename) {
-    //if (filesystem::exists(filename)) { filesystem::remove(filename);}
-    std::ofstream outputFile(filename);
-    while (outputFile.is_open()) {
-        for (int i=0; i<myVector.size(); i++){//(const auto& str : myVector) {
-            outputFile << i << " " << myVector[i] << '\n';
-        }
-        outputFile.close();
-    }
-}
-
+// Not used, but usefull for debugging
 void print_LCS(const string& v,const string& fname) {
     std::ofstream csv_file(fname);
     // Write the contents of the int_vector to the CSV file
@@ -108,15 +90,6 @@ void print_LCS(const string& v,const string& fname) {
         }
     }
     csv_file.close();
-}
-
-template<typename writer_t>
-void write_csv(const tuple<string, string, string, string,string>& p, writer_t& out) {
-    //assert(out.is_open());
-    char newline = '\n';
-    std::string line = std::get<0>(p) + ',' + std::get<1>(p) + ',' + std::get<2>(p) + ',' + std::get<3>(p) + ',' + std::get<4>(p) + '\n';
-    out.write(line.c_str(), line.length());
-    out.write(&newline, 1);
 }
 
 set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plain_matrix_sbwt_t& sbwt, const string& input, const char t) {
