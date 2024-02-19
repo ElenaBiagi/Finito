@@ -19,7 +19,7 @@ make -j4
 
 cd ../..
 ```
-Select the desired branch: *main*:sigle index, *double*: double index (+reverse complements).
+Select the desired branch: *main*: sigle index, *double*: double index (+reverse complements).
 The following instructions are for the double branch.
 ```
 git checkout double
@@ -44,11 +44,7 @@ Usage:
   reverse -i <input> -o <output>
 
   -i, --in-file arg   The SPSS in FASTA or FASTQ format, possibly gzipped. 
-                      Multi-line FASTQ is not supported. If the file 
-                      extension is .txt, this is interpreted as a list of 
-                      query files, one per line. In this case, --out-file 
-                      is also interpreted as a list of output files in the 
-                      same manner, one line for each input file.
+                      Multi-line FASTQ is not supported.
   -o, --out-file arg  Reverse complement files. (default: out.fna)
   -h, --help          Print usage
 ```
@@ -64,10 +60,8 @@ build-fmin [OPTION...]
 
   -o, --out-file arg    Output index filename prefix.
   -i, --index-file arg  SBWT file. This has to be a binary matrix.
-  -f, --f-file arg      The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
-                        file extension is .txt, this is interpreted as a list of query files, one per line. In this case, 
-                        --out-file is also interpreted as a list of output files in the same manner, one line for each input 
-                        file.
+  -f, --f-file arg      The unitigs in FASTA or FASTQ format, possibly gzipped.
+                        Multi-line FASTQ is not supported.
   -r, --r-file arg      reverse complement of f-file
       --type arg        Decide which streaming search type you prefer. 
                         Available types:  rarest shortest verify. The 
