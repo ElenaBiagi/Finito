@@ -230,7 +230,7 @@ void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& in
         FinimizerIndexBuilder builder(move(sbwt), move(LCS), f_reader, r_reader);
         unique_ptr<FinimizerIndex> index = builder.get_index();
         index->serialize(index_prefix);
-    }  else if(type == "shortest"){
+    }  /* else if(type == "shortest"){
         // Just print stats because we don't have an index for this yet
         print_shortest_finimizer_stats(*sbwt, *LCS, f_reader, t);
     } else if(type == "verify"){
@@ -246,7 +246,7 @@ void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& in
             }
         }
         print_finimizer_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), t);    
-    }
+    } */
 }
 
 template<typename sbwt_t, typename reader_t>
@@ -299,7 +299,7 @@ int build_fmin(int argc, char** argv) {
             "The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
             cxxopts::value<string>())
         ("r,r-file", "reverse complement of f-file", cxxopts::value<string>())
-        ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
+        //("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
         ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>()->default_value(std::to_string(1)))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage");
@@ -358,12 +358,13 @@ int build_fmin(int argc, char** argv) {
         unique_ptr<plain_matrix_sbwt_t> sbwt = make_unique<plain_matrix_sbwt_t>();
         sbwt->load(in.stream);
 
-        string type = opts["type"].as<string>();
+        /* string type = opts["type"].as<string>();
         if(std::find(types.begin(), types.end(), type) == types.end()){
             cerr << "Error: unknown type: " << type << endl;
             cerr << "Available types are:" << all_types_string << endl;
             return 1;
-        }
+        } */
+        string type = "rarest";
 
         string LCS_file = opts["lcs"].as<string>();
         if (LCS_file.empty()) {

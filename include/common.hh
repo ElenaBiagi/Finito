@@ -106,7 +106,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
         // 1) fmin interval
         I_new = sbwt.update_sbwt_interval(&c, 1, I); //I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
         // (1) Finimizer(subseq) NOT found
-        // TODO We already know that no kmer will be found
+        // We already know that no kmer will be found
             while(I_new.first == -1){
                 kmer_start = ++start;
                 if (start>end)[[unlikely]]{
