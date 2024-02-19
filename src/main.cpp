@@ -6,13 +6,11 @@
 #include "globals.hh"
 #include "build_fmin.hh"
 #include "search_fmin.hh"
-#include "reverse_strings.hh"
 #include "FinimizerIndex.hh"
 
 using namespace std;
 
-static vector<string> commands = { "build-fmin", "search-fmin"};//"build", "build-variant", "search",
-
+static vector<string> commands = { "build-fmin", "search-fmin"};
 void print_help(int argc, char** argv){
     (void) argc; // Unused parameter
     cerr << "Available commands: " << endl;
@@ -46,7 +44,6 @@ int main(int argc, char** argv){
     try{
         if(command == "build-fmin") {return build_fmin(argc, argv);}
         else if(command == "search-fmin") {return search_fmin(argc, argv);}
-        else if(command == "reverse") {return reverse_strings(argc, argv);}
         else{
             throw std::runtime_error("Invalid command: " + command);
             return 1;

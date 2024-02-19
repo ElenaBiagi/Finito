@@ -111,9 +111,8 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
             return {};
         } else {
             // 1) fmin interval
-            I_new = sbwt.update_sbwt_interval(&c, 1, I); //I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
+            I_new = sbwt.update_sbwt_interval(&c, 1, I);
             // (1) Finimizer(subseq) NOT found
-            // TODO We already know that no kmer will be found
             while(I_new.first == -1){
                 kmer_start = ++start;
                 if (start>end)[[unlikely]]{
@@ -122,7 +121,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                     break;
                 }
                 I = drop_first_char(end - start, I, LCS, n_nodes); // The result (substr(start++,end)) cannot have freq == 1 as substring(start,end) has freq >1
-                I_new = sbwt.update_sbwt_interval(&c, 1, I);// I_new = update_sbwt_interval(C[char_idx], I, Bit_rs);
+                I_new = sbwt.update_sbwt_interval(&c, 1, I);
                 I_kmer = I_new;
             }
             I = I_new;
@@ -131,12 +130,12 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
             // (2) Finimizer(subseq) freq > 0
             // Check if the Kmer interval has to be updated
             if ( start != kmer_start){
-                I_kmer_new = sbwt.update_sbwt_interval(&c, 1, I_kmer); //I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
+                I_kmer_new = sbwt.update_sbwt_interval(&c, 1, I_kmer);
                 while(I_kmer_new.first == -1){
                     // kmer NOT found
                     kmer_start++;
                     I_kmer = drop_first_char(end - kmer_start, I_kmer, LCS, n_nodes);
-                    I_kmer_new = sbwt.update_sbwt_interval(&c, 1, I_kmer);//I_kmer_new = update_sbwt_interval(C[char_idx], I_kmer, Bit_rs);
+                    I_kmer_new = sbwt.update_sbwt_interval(&c, 1, I_kmer);
                 } 
                 I_kmer = I_kmer_new;
             } else { 

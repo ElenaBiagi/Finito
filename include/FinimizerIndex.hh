@@ -284,7 +284,7 @@ public:
         global_offsets.reserve(n_nodes);
         global_offsets.resize(n_nodes, 0);
         
-        pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(*(this->sbwt), reader, "unused_parameter"); // TODO: remove the unused parameter 
+        pair<PackedStrings, sdsl::bit_vector> unitig_data = permute_unitigs(*(this->sbwt));
         PackedStrings& unitigs = unitig_data.first;
         sdsl::bit_vector& Ustart = unitig_data.second;
 
@@ -341,21 +341,13 @@ public:
         // Start is always < k as start <= end and end <k
         // if start == end than the frequency higher than t
         for (end = 0; end < str_len; end++) {
-            // TODO we don't need to check the char here anymore 
             c = static_cast<char>(seq[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
-            char_idx = get_char_idx(c);
-            if (char_idx == -1) [[unlikely]]{
-               std::cerr << "Error: unknown character: " << c << endl;
-               std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
-                return {};
-            } else {
-                //const sdsl::rank_support_v5<> &Bit_rs = *(DNA_rs[char_idx]);
-                //update the sbwt INTERVAL
-                I = this->sbwt->update_sbwt_interval(&c, 1, I);
-                freq = (I.second - I.first + 1);
-                I_start = I.first;
-                if (freq == 1){ // 1. rarest 
-                    while (freq == 1) {  //2. shortest
+            //update the sbwt INTERVAL
+            I = this->sbwt->update_sbwt_interval(&c, 1, I);
+            freq = (I.second - I.first + 1);
+            I_start = I.first;
+            if (freq == 1){ // 1. rarest 
+                while (freq == 1) {  //2. shortest
                     curr_substr = {freq, end - start + 1, I_start, end};
                     // (2) drop the first char
                     // When you drop the first char you are sure to find x_2..m since you found x_1..m before
@@ -363,15 +355,14 @@ public:
                     I = drop_first_char(end - start + 1, I, *(this->LCS), n_nodes);
                     freq = (I.second - I.first + 1);
                     I_start = I.first;
-                    }
-                    if (w_fmin > curr_substr) {
-                        all_fmin.clear();
-                        w_fmin = curr_substr;
-                    } else{
-                        while (all_fmin.back() > curr_substr) {all_fmin.pop_back();}
-                    }
-                    all_fmin.push_back(curr_substr);
                 }
+                if (w_fmin > curr_substr) {
+                    all_fmin.clear();
+                    w_fmin = curr_substr;
+                } else{
+                    while (all_fmin.back() > curr_substr) {all_fmin.pop_back();}
+                }
+                all_fmin.push_back(curr_substr);
             }
             if (end >= k -1 ){
                 count_all_w_fmin.insert({get<1>(w_fmin),get<0>(w_fmin), get<2>(w_fmin) });// (length,freq,colex) freq = 1 thus == (freq, length,colex)

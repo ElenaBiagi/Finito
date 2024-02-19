@@ -102,7 +102,7 @@ class PackedStrings{
 
 // Returns packed unitigs and the Ustart bit vector
 template <typename reader_t>
-pair<PackedStrings, sdsl::bit_vector> permute_unitigs(const plain_matrix_sbwt_t& sbwt, reader_t& unitig_reader, const string& index_prefix){
+pair<PackedStrings, sdsl::bit_vector> permute_unitigs(const plain_matrix_sbwt_t& sbwt, reader_t& unitig_reader){
     int64_t k = sbwt.get_k();
     vector<pair<Kmer<MAX_KMER_LENGTH>, int64_t>> first_kmers; // pairs (kmer, unitig id)
     vector<string> unitigs;
