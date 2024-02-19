@@ -300,7 +300,7 @@ int build_fmin(int argc, char** argv) {
             cxxopts::value<string>())
         ("r,r-file", "reverse complement of f-file", cxxopts::value<string>())
         //("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
-        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>()->default_value(std::to_string(1)))
+        //("t", "Maximum finimizer frequency", cxxopts::value<int64_t>()->default_value(std::to_string(1)))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage");
 
@@ -311,7 +311,9 @@ int build_fmin(int argc, char** argv) {
         std::cerr << options.help() << std::endl;
         exit(1);
     }
-    char t = opts["t"].as<int64_t>();
+    //char t = opts["t"].as<int64_t>();
+    char t = 1;
+
 
     // forward unitigs
     string f_file = opts["f-file"].as<string>();
