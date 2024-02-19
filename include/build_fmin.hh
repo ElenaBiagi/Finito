@@ -39,7 +39,7 @@ std::vector<std::string> get_available_variants_fmin(){
     return {"plain-matrix"};//, "rrr-matrix", "mef-matrix", "plain-split", "rrr-split", "mef-split", "plain-concat", "mef-concat", "plain-subsetwt", "rrr-subsetwt"};
 }
 std::vector<std::string> get_available_types(){
-    return {"rarest"};//, "shortest", "verify"};
+    return {"rarest", "shortest", "verify"};
 }
 
 void save_v(const std::string& filename, const sdsl::int_vector<>& v) {
@@ -182,20 +182,6 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
     return count_all_w_fmin;
 }
 
-template<typename reader_t>
-void print_shortest_finimizer_stats(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, reader_t& reader, int64_t t){
-    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
-    const int64_t n_nodes = sbwt.number_of_subsets();
-    sdsl::bit_vector fmin_found(n_nodes,0);
-    while(true){
-        int64_t len = reader.get_next_read_to_buffer();
-        if(len == 0) [[unlikely]] break;
-        set<tuple<int64_t,int64_t, int64_t>> w_fmin = build_shortest_streaming_search(sbwt, LCS, reader.read_buf, t, fmin_found);
-        count_all_w_fmin.insert(w_fmin.begin(), w_fmin.end());
-    }
-    print_finimizer_stats(count_all_w_fmin, sbwt.number_of_kmers(), sbwt.number_of_subsets(), t);
-}
-
 vector<string> remove_ns(const string& unitig, const int64_t k){
     vector<string> new_unitigs;
     const int64_t str_len = unitig.size();
@@ -220,6 +206,53 @@ vector<string> remove_ns(const string& unitig, const int64_t k){
     return new_unitigs;
 }
 
+
+template<typename reader_t>
+void print_shortest_finimizer_stats(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, reader_t& reader_f,reader_t& reader_r , int64_t t){
+    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    sdsl::bit_vector fmin_found(n_nodes,0);
+    while(true){
+        int64_t len = reader_f.get_next_read_to_buffer();
+        if(len == 0) [[unlikely]] break;
+        set<tuple<int64_t,int64_t, int64_t>> w_fmin = build_shortest_streaming_search(sbwt, LCS, reader_f.read_buf, t, fmin_found);
+        count_all_w_fmin.insert(w_fmin.begin(), w_fmin.end());
+    }
+    while(true){
+        int64_t len = reader_r.get_next_read_to_buffer();
+        if(len == 0) [[unlikely]] break;
+        set<tuple<int64_t,int64_t, int64_t>> w_fmin = build_shortest_streaming_search(sbwt, LCS, reader_r.read_buf, t, fmin_found);
+        count_all_w_fmin.insert(w_fmin.begin(), w_fmin.end());
+    }
+    print_finimizer_stats(count_all_w_fmin, sbwt.number_of_kmers(), sbwt.number_of_subsets(), t);
+}
+
+// brute force = slow
+template<typename reader_t>
+void print_verify_finimizer_stats(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS, reader_t& reader_f,reader_t& reader_r , int64_t t){        
+    set<tuple<int64_t,int64_t, int64_t>> count_all_w_fmin;
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    while(true){
+        int64_t len = reader_f.get_next_read_to_buffer();
+        if(len == 0) [[unlikely]] break;
+        vector<string> preprocessed_unitigs = remove_ns(reader_f.read_buf, sbwt.get_k());
+        for (string& seq : preprocessed_unitigs){
+            set<tuple<int64_t, int64_t, int64_t>> new_search = verify_shortest_streaming_search(sbwt, seq, t);
+            count_all_w_fmin.insert(new_search.begin(), new_search.end());
+        }
+    }
+    while(true){
+        int64_t len = reader_r.get_next_read_to_buffer();
+        if(len == 0) [[unlikely]] break;
+        vector<string> preprocessed_unitigs = remove_ns(reader_r.read_buf, sbwt.get_k());
+        for (string& seq : preprocessed_unitigs){
+            set<tuple<int64_t, int64_t, int64_t>> new_search = verify_shortest_streaming_search(sbwt, seq, t);
+            count_all_w_fmin.insert(new_search.begin(), new_search.end());
+        }
+    }
+    print_finimizer_stats(count_all_w_fmin, sbwt.number_of_kmers(), sbwt.number_of_subsets(), t);
+}
+
 template<typename sbwt_t, typename reader_t>
 void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& index_prefix, unique_ptr<sbwt_t> sbwt, unique_ptr<sdsl::int_vector<>> LCS, const char t, const string& type){
 
@@ -230,23 +263,13 @@ void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& in
         FinimizerIndexBuilder builder(move(sbwt), move(LCS), f_reader, r_reader);
         unique_ptr<FinimizerIndex> index = builder.get_index();
         index->serialize(index_prefix);
-    }  /* else if(type == "shortest"){
+    } else if(type == "shortest"){
         // Just print stats because we don't have an index for this yet
-        print_shortest_finimizer_stats(*sbwt, *LCS, f_reader, t);
+        print_shortest_finimizer_stats(*sbwt, *LCS, f_reader, r_reader, t);
     } else if(type == "verify"){
-        // Print stats on shortest finimizers based on a reference implementation
-        set<tuple<int64_t,int64_t, int64_t>> finimizers;
-        while(true){
-            int64_t len = reader.get_next_read_to_buffer();
-            if(len == 0) [[unlikely]] break;
-            vector<string> preprocessed_unitigs = remove_ns(reader.read_buf, sbwt->get_k());
-            for (string& seq : preprocessed_unitigs){
-                set<tuple<int64_t, int64_t, int64_t>> new_search = verify_shortest_streaming_search(*sbwt, seq, t);
-                finimizers.insert(new_search.begin(), new_search.end());
-            }
-        }
-        print_finimizer_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), t);    
-    } */
+        // Print stats on shortest finimizers based on a brute force implementation
+        print_verify_finimizer_stats(*sbwt, *LCS, f_reader, r_reader, t);
+    }
 }
 
 template<typename sbwt_t, typename reader_t>
@@ -299,8 +322,8 @@ int build_fmin(int argc, char** argv) {
             "The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.",
             cxxopts::value<string>())
         ("r,r-file", "reverse complement of f-file", cxxopts::value<string>())
-        //("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
-        //("t", "Maximum finimizer frequency", cxxopts::value<int64_t>()->default_value(std::to_string(1)))
+        ("type", "Decide which streaming search type you prefer. Available types: " + all_types_string, cxxopts::value<string>()->default_value("rarest"))
+        ("t", "Maximum finimizer frequency", cxxopts::value<int64_t>()->default_value(std::to_string(1)))
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
         ("h,help", "Print usage");
 
@@ -311,8 +334,8 @@ int build_fmin(int argc, char** argv) {
         std::cerr << options.help() << std::endl;
         exit(1);
     }
-    //char t = opts["t"].as<int64_t>();
-    char t = 1;
+    char t = opts["t"].as<int64_t>();
+    //char t = 1;
 
 
     // forward unitigs
@@ -360,13 +383,13 @@ int build_fmin(int argc, char** argv) {
         unique_ptr<plain_matrix_sbwt_t> sbwt = make_unique<plain_matrix_sbwt_t>();
         sbwt->load(in.stream);
 
-        /* string type = opts["type"].as<string>();
+        string type = opts["type"].as<string>();
         if(std::find(types.begin(), types.end(), type) == types.end()){
             cerr << "Error: unknown type: " << type << endl;
             cerr << "Available types are:" << all_types_string << endl;
             return 1;
-        } */
-        string type = "rarest";
+        }
+        //string type = "rarest";
 
         string LCS_file = opts["lcs"].as<string>();
         if (LCS_file.empty()) {
