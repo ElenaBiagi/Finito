@@ -85,10 +85,8 @@ Usage:
 
   -o, --out-file arg    Output filename, or stdout if not given.
   -i, --index-file arg  Index filename prefix.
-  -q, --query-file arg  The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
-                        file extension is .txt, this is interpreted as a list of query files, one per line. In this case, 
-                        --out-file is also interpreted as a list of output files in the same manner, one line for each input 
-                        file.
+  -q, --query-file arg  The query in FASTA or FASTQ format, possibly gzipped.
+                        Multi-line FASTQ is not supported. 
   -h, --help            Print usage
 ```
 Support for lookup queries is currently available only for "rarest".
@@ -97,13 +95,13 @@ Support for lookup queries is currently available only for "rarest".
 A DSPSS is required as input to build the SBWT index. You can obtain canonical unitigs or eulertigs using [ggcat](https://github.com/algbio/ggcat).
 
 ```
-ggcat build --min-multiplicity 1 -k <k> --output-file unitigs.fna --threads-count 48 input.fna
+ggcat build --min-multiplicity 1 -k <k> --output-file <unitigs.fna> --threads-count 48 <input.fna>
 ```
 
 ### Unitigs flipping
 To reduce the space usage it is advisable to flip the unitigs with [unitig-flipper](https://github.com/jnalanko/unitig_flipper).
 
 ```
-unitig_flipper --input unitigs.fna --output flipped_unitigs.fna -k <k>
+unitig_flipper --input <unitigs.fna> --output <flipped_unitigs.fna> -k <k>
 
 ```
