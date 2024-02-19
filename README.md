@@ -76,13 +76,13 @@ Support for localization queries is currently available only for "rarest".
 A DSPSS is required as input to build the SBWT index. You can obtain canonical unitigs or eulertigs using [ggcat](https://github.com/algbio/ggcat).
 
 ```
-ggcat build --min-multiplicity 1 -k <k> --output-file unitigs.fna --threads-count 48 input.fna
+ggcat build --min-multiplicity 1 -k <k> --output-file <unitigs.fna> --threads-count 48 <input.fna>
 ```
 
 ### Unitigs flipping
 To reduce the space usage it is advisable to flip the unitigs with [unitig-flipper](https://github.com/jnalanko/unitig_flipper).
 
 ```
-unitig_flipper --input unitigs.fna --output flipped_unitigs.fna -k <k>
+unitig_flipper --input <unitigs.fna> --output <flipped_unitigs.fna> -k <k>
 
 ```
