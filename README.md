@@ -19,7 +19,7 @@ make -j4
 
 cd ../..
 ```
-Select the desired branch: *main*:sigle index, *double*: double index (+reverse complements).
+Select the desired branch: *main*: sigle index, *double*: double index (+reverse complements).
 The following instructions are for the main branch.
 ```
 make benchmark --always-make CXX=g++-10
@@ -43,12 +43,11 @@ build-fmin [OPTION...]
 
   -o, --out-file arg    Output index filename prefix.
   -i, --index-file arg  SBWT file. This has to be a binary matrix.
-  -u, --in-file arg      The unitigs in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
-                        file extension is .txt, this is interpreted as a list of query files, one per line. In this case, 
-                        --out-file is also interpreted as a list of output files in the same manner, one line for each input 
-                        file.
+  -u, --in-file arg     The unitigs in FASTA or FASTQ format, possibly gzipped.
+                        Multi-line FASTQ is not supported.
       --type arg        Decide which streaming search type you prefer. 
-                        Available types:  rarest shortest verify. The latter two only provide some stats. (default: rarest)
+                        Available types:  rarest shortest verify.
+                        The latter two only provide some stats. (default: rarest)
   -t arg                Maximum finimizer frequency (default: 1)
       --lcs arg         Provide in input the LCS file if available. 
                         (default: "")
@@ -67,10 +66,8 @@ Usage:
 
   -o, --out-file arg    Output filename, or stdout if not given.
   -i, --index-file arg  Index filename prefix.
-  -q, --query-file arg  The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the 
-                        file extension is .txt, this is interpreted as a list of query files, one per line. In this case, 
-                        --out-file is also interpreted as a list of output files in the same manner, one line for each input 
-                        file.
+  -q, --query-file arg  The query in FASTA or FASTQ format, possibly gzipped.
+                        Multi-line FASTQ is not supported.
   -h, --help            Print usage
 ```
 Support for localization queries is currently available only for "rarest".
