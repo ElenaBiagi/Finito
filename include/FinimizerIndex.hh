@@ -397,7 +397,6 @@ public:
         int64_t I_start;
         tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
         char c;
-        char char_idx;
         // the idea is to start from the first pos which is i and move until finding something of ok freq
         // then drop the first char keeping track of which char you are starting from
         // Start is always < k as start <= end and end <k

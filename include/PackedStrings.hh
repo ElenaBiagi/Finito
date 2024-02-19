@@ -152,7 +152,7 @@ tuple<PackedStrings, sdsl::bit_vector, sdsl::bit_vector, sdsl::int_vector<> > pe
         int64_t len = r_reader.get_next_read_to_buffer();
         if(len == 0) [[unlikely]] break;
         r_unitigs.push_back(r_reader.read_buf);
-        // todo later after they are sorted
+        // do this later after they are sorted
         //r_first_kmers.push_back({Kmer<MAX_KMER_LENGTH>(unitigs.back().c_str(), k), unitig_id});
     }
 

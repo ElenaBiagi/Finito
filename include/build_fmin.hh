@@ -78,16 +78,6 @@ void print_LCS(const string& v,const string& fname) {
     csv_file.close();
 }
 
-// TODO check if it is used
-template<typename writer_t>
-void write_csv(const tuple<string, string, string, string,string>& p, writer_t& out) {
-    //assert(out.is_open());
-    char newline = '\n';
-    std::string line = std::get<0>(p) + ',' + std::get<1>(p) + ',' + std::get<2>(p) + ',' + std::get<3>(p) + ',' + std::get<4>(p) + '\n';
-    out.write(line.c_str(), line.length());
-    out.write(&newline, 1);
-}
-
 set<tuple<int64_t,int64_t, int64_t>> verify_shortest_streaming_search(const plain_matrix_sbwt_t& sbwt, const string& input, const char t) {
     const int64_t n_nodes = sbwt.number_of_subsets();
     const int64_t k = sbwt.get_k();
@@ -142,22 +132,14 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
     int64_t I_start;
     tuple<int64_t, int64_t, int64_t, int64_t> curr_substr;
     char c;
-    char char_idx;
-
     for (end = 0; end < str_len; end++) {
-        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
-        char_idx = get_char_idx(c);
-        /*if (char_idx == -1) [[unlikely]]{
-           std::cerr << "Error: unknown character: " << c << endl;
-           std::cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
-            return {};
-        } else {*/
-            I = sbwt.update_sbwt_interval(&c, 1, I);
-            freq = (I.second - I.first + 1);
-            I_start = I.first;
+        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation        
+        I = sbwt.update_sbwt_interval(&c, 1, I);
+        freq = (I.second - I.first + 1);
+        I_start = I.first;
             
-            if (freq <= t){ // 1. rarest
-                while (freq <= t){ // 2. shortest
+        if (freq <= t){ // 1. rarest
+            while (freq <= t){ // 2. shortest
                 curr_substr = {end - start + 1,freq, I_start, end};
                 // (2) drop the first char
                 // When you drop the first char you are sure to find x_2..m since you found x_1..m before
@@ -165,19 +147,17 @@ set<tuple<int64_t,int64_t, int64_t>> build_shortest_streaming_search(const plain
                 I = drop_first_char(end - start + 1, I, LCS, n_nodes);
                 freq = (I.second - I.first + 1);
                 I_start = I.first;
-                }
-                if (w_fmin > curr_substr) {
-                    all_fmin.clear();
-                    w_fmin = curr_substr;
-                } else{
-                    while (all_fmin.back() > curr_substr) {
-                        all_fmin.pop_back();
-                    }
-                }
-                all_fmin.push_back(curr_substr);
- 
             }
-        //}
+            if (w_fmin > curr_substr) {
+                all_fmin.clear();
+                w_fmin = curr_substr;
+            } else{
+                while (all_fmin.back() > curr_substr) {
+                    all_fmin.pop_back();
+                }
+            }
+            all_fmin.push_back(curr_substr);
+        }
         if (end >= k -1 ){
             if (!fmin_found[get<2>(w_fmin)]){ // if the kmer never been found before
                 count_all_w_fmin.insert({get<0>(w_fmin), get<1>(w_fmin), get<2>(w_fmin) });// (length,freq,colex)
@@ -250,7 +230,7 @@ void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& in
         FinimizerIndexBuilder builder(move(sbwt), move(LCS), f_reader, r_reader);
         unique_ptr<FinimizerIndex> index = builder.get_index();
         index->serialize(index_prefix);
-    } /* else if(type == "shortest"){
+    }  else if(type == "shortest"){
         // Just print stats because we don't have an index for this yet
         print_shortest_finimizer_stats(*sbwt, *LCS, f_reader, t);
     } else if(type == "verify"){
@@ -267,7 +247,6 @@ void run_fmin_streaming(reader_t& f_reader, reader_t& r_reader, const string& in
         }
         print_finimizer_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), t);    
     }
- */
 }
 
 template<typename sbwt_t, typename reader_t>
