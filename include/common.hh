@@ -22,6 +22,14 @@
 #include "SeqIO.hh"
 #include "BoundedDeque.hh"
 
+void write_csv(const std::string filename, const std::string colname, const vector<int64_t>& vals){
+    std::ofstream myFile(filename);
+    myFile << colname << "\n";
+    for(int i = 0; i < vals.size(); ++i){ myFile << vals[i] << "\n";}
+    myFile.close();
+}
+
+
 
 pair<int64_t,int64_t> update_sbwt_interval(const int64_t C_char, const pair<int64_t,int64_t>& I, const sdsl::rank_support_v5<>& Bit_rs){
     if(I.first == -1) return I;
@@ -47,6 +55,22 @@ pair<int64_t,int64_t> drop_first_char(const int64_t  new_len, const pair<int64_t
     return {new_I};
 }
 
+pair<int64_t,int64_t> drop_first_char_stats(const int64_t  new_len, const pair<int64_t,int64_t>& I, const sdsl::int_vector<>& LCS, const int64_t n_nodes, vector<int64_t>& left, vector<int64_t>& right){
+    if(I.first == -1) return I;
+    if (new_len<=0){return {0, n_nodes - 1};}
+    pair<int64_t,int64_t> new_I = I;
+    
+    //Check top and bottom w the LCS
+    while (new_I.first > 0 && LCS[new_I.first] >= new_len ){new_I.first --;}
+    while(new_I.second < (n_nodes - 1) && LCS[new_I.second + 1] >= new_len ){
+        new_I.second ++;
+    }
+    left.push_back((I.first-new_I.first)+1);
+    right.push_back((new_I.second-I.second)+1);
+    return {new_I};
+}
+
+
 char get_char_idx(char c){
     switch(c){
         case 'A': return 0;
@@ -69,6 +93,36 @@ int64_t lookup_from_branch_dictionary(int64_t kmer_colex, int64_t k, const sdsl:
 int64_t lookup_from_finimizer_dictionary(int64_t finimizer_colex, const sdsl::rank_support_v5<>& fmin_rs, const sdsl::int_vector<>& global_offsets){
     int64_t finimizer_id = fmin_rs.rank(finimizer_colex);
     return global_offsets[finimizer_id];
+}
+
+
+
+vector<tuple<int64_t, int64_t, int64_t>> MatchingStatistics_stats(const plain_matrix_sbwt_t& sbwt, const sdsl::int_vector<>& LCS,const string& input, vector<int64_t>& left, vector<int64_t>& right){
+    const int64_t n_nodes = sbwt.number_of_subsets();
+    pair<int64_t, int64_t> I = {0, n_nodes - 1};
+    pair<int64_t, int64_t> I_new;
+    const int64_t k = sbwt.get_k();
+
+    const int64_t str_len = input.size();
+    char c;
+
+    int64_t d = 0; //lenght of the current match
+    vector<tuple<int64_t, int64_t, int64_t>> MS;
+    for (int64_t end = 0; end < str_len; end++) {
+        // Contract left
+        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation  
+        I_new = sbwt.update_sbwt_interval(&c, 1, I);
+        while(d > 0 && I_new.first == -1){
+            d--;
+            I = drop_first_char_stats(d, I, LCS, n_nodes, left, right);
+        }
+        if (I_new.first != -1){
+            I = I_new;
+            d = min(k, d+1);
+            }
+        MS.push_back({d,(I.second - I.first + 1),I.first });
+    }
+    return MS;
 }
 
 
