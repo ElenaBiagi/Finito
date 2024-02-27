@@ -55,7 +55,7 @@ build-fmin [OPTION...]
   -h, --help            Print usage
 ```
 
-## k-mer lookup queries
+## k-mer localization queries
 
 You can query $k$-mer in the unitigs with:
 ```
@@ -74,6 +74,8 @@ Usage:
   -h, --help            Print usage
 ```
 Support for localization queries is currently available only for "rarest".
+The output for each kmer is a pair (unitig id, index) or (-1,-1) if not found.
+
 
 ### Disjoint Spectrum Preserving String Set (DSPSS)
 A DSPSS is required as input to build the SBWT index. You can obtain canonical unitigs or eulertigs using [ggcat](https://github.com/algbio/ggcat).
