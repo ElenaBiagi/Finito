@@ -54,7 +54,7 @@ build-fmin [OPTION...]
   -h, --help            Print usage
 ```
 
-## k-mer lookup queries
+## k-mer localization queries
 
 You can query $k$-mer in the unitigs with:
 ```
