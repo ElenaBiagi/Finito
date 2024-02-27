@@ -111,15 +111,26 @@ vector<tuple<int64_t, int64_t, int64_t>> MatchingStatistics_stats(const plain_ma
     for (int64_t end = 0; end < str_len; end++) {
         // Contract left
         c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation  
-        I_new = sbwt.update_sbwt_interval(&c, 1, I);
-        while(d > 0 && I_new.first == -1){
-            d--;
+        if (d==k){
             I = drop_first_char_stats(d, I, LCS, n_nodes, left, right);
+            d--;
         }
-        if (I_new.first != -1){
-            I = I_new;
-            d = min(k, d+1);
+        if (d==0){
+            I = sbwt.update_sbwt_interval(&c, 1, I);
+            d++;
+        } else{
+            while(d > 0){
+                I_new = sbwt.update_sbwt_interval(&c, 1, I);
+                if (I_new.first == -1){
+                    I = drop_first_char_stats(d, I, LCS, n_nodes, left, right);
+                    d--;
+                } else {
+                    I = I_new;
+                    d++;
+                    break;
+                }            
             }
+        }
         MS.push_back({d,(I.second - I.first + 1),I.first });
     }
     return MS;
