@@ -67,12 +67,6 @@ int64_t run_MS_streaming(reader_t& reader, out_stream_t& out, const plain_matrix
     write_log("k " + to_string(k), LogLevel::MAJOR);
     write_log("us/query: " + to_string((double)total_micros / number_of_queries) + " (excluding I/O etc)", LogLevel::MAJOR);
     write_log("Found kmers: " + to_string(kmers_count), LogLevel::MAJOR);
-    write_log("Total found kmers: " + to_string(total_positive), LogLevel::MAJOR);
-
-    /* std::ofstream statsfile;
-    statsfile.open(stats_filename, std::ios_base::app); // append instead of overwrite
-    statsfile << to_string(k) + "," + to_string(kmers_count) + "," + to_string(number_of_queries);
-    statsfile.close(); */
     return number_of_queries;
 }
 
@@ -126,10 +120,10 @@ int MS_stats(int argc, char** argv){
 
     set_log_level(LogLevel::MINOR);
 
-    cxxopts::Options options(argv[0], "Query all Finimizers of all input reads.");
+    cxxopts::Options options(argv[0], "Matching Statistics + LCS scan distribution.");
 
     options.add_options()
-        ("o,out-file", "Output filename, or stdout if not given.", cxxopts::value<string>())
+        ("o,out-file", "Output filename.", cxxopts::value<string>())
         ("i,index-file", "Index filename prefix.", cxxopts::value<string>())
         ("q,query-file", "The query in FASTA or FASTQ format, possibly gzipped. Multi-line FASTQ is not supported. If the file extension is .txt, this is interpreted as a list of query files, one per line. In this case, --out-file is also interpreted as a list of output files in the same manner, one line for each input file.", cxxopts::value<string>())
         ("lcs", "Provide in input the LCS file if available.", cxxopts::value<string>()->default_value(""))
@@ -157,6 +151,7 @@ int MS_stats(int argc, char** argv){
 
     // Interpret output file
     optional<vector<string>> output_files;
+    string outfile = opts["out-file"].as<string>();
     try{
         string outfile = opts["out-file"].as<string>();
         if(multi_file){
@@ -204,11 +199,8 @@ int MS_stats(int argc, char** argv){
     write_log("us/query end-to-end: " + to_string((double)new_total_micros / number_of_queries), LogLevel::MAJOR);
     write_log("total number of queries: " + to_string(number_of_queries), LogLevel::MAJOR);
     
-    int64_t total_micros = cur_time_micros() - micros_start;
-    write_log("us/query end-to-end: " + to_string((double)total_micros / number_of_queries), LogLevel::MAJOR);
-
-    write_csv("LCS_Lscan.csv", "left", left);
-    write_csv("LCS_Rscan.csv", "right", right);
+    write_csv(outfile + "LCS_Lscan.csv", "left", left);
+    write_csv(outfile + "LCS_Rscan.csv", "right", right);
     }
     return 0;
 
