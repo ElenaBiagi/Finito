@@ -109,11 +109,11 @@ vector<tuple<int64_t, int64_t, int64_t>> MatchingStatistics_stats(const plain_ma
     int64_t d = 0; //lenght of the current match
     vector<tuple<int64_t, int64_t, int64_t>> MS;
     for (int64_t end = 0; end < str_len; end++) {
-        // Contract left
         c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation  
         I_new = sbwt.update_sbwt_interval(&c, 1, I);
         while(d > 0 && I_new.first == -1){
             d--;
+            // Contract left
             I = drop_first_char_stats(d, I, LCS, n_nodes, left, right);
             I_new = sbwt.update_sbwt_interval(&c, 1, I);
         }
