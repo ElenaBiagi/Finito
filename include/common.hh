@@ -115,11 +115,12 @@ vector<tuple<int64_t, int64_t, int64_t>> MatchingStatistics_stats(const plain_ma
         while(d > 0 && I_new.first == -1){
             d--;
             I = drop_first_char_stats(d, I, LCS, n_nodes, left, right);
+            I_new = sbwt.update_sbwt_interval(&c, 1, I);
         }
         if (I_new.first != -1){
             I = I_new;
             d = min(k, d+1);
-            }
+        }
         MS.push_back({d,(I.second - I.first + 1),I.first });
     }
     return MS;
