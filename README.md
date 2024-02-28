@@ -54,7 +54,7 @@ build-fmin [OPTION...]
   -h, --help            Print usage
 ```
 
-## k-mer lookup queries
+## k-mer localization queries
 
 You can query $k$-mer in the unitigs with:
 ```
@@ -71,6 +71,30 @@ Usage:
   -h, --help            Print usage
 ```
 Support for localization queries is currently available only for "rarest".
+
+## Matching Statistics
+
+```
+./benchmark MS_stats -i <index.sbwt> -o <out-file> -q <query-file.fa> [--lcs <LCS.sdsl>]
+```
+Query example : ``` ./SBWT/example_data/queries.fastq```.
+```
+Usage:
+  MS_stats [OPTION...]
+
+  -o, --out-file arg    Output filename: prefix of the LCS scan file name.
+  -i, --index-file arg  Index filename prefix.
+  -q, --query-file arg  The query in FASTA or FASTQ format, possibly 
+                        gzipped. Multi-line FASTQ is not supported. If the 
+                        file extension is .txt, this is interpreted as a 
+                        list of query files, one per line. In this case, 
+                        --out-file is also interpreted as a list of output 
+                        files in the same manner, one line for each input 
+                        file.
+      --lcs arg         Provide in input the LCS file if available. 
+                        (default: "")
+  -h, --help            Print usage
+```
 
 ### Disjoint Spectrum Preserving String Set (DSPSS)
 A DSPSS is required as input to build the SBWT index. You can obtain canonical unitigs or eulertigs using [ggcat](https://github.com/algbio/ggcat).
