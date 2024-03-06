@@ -109,19 +109,28 @@ vector<tuple<int64_t, int64_t, int64_t>> MatchingStatistics_stats(const plain_ma
     int64_t d = 0; //lenght of the current match
     vector<tuple<int64_t, int64_t, int64_t>> MS;
     for (int64_t end = 0; end < str_len; end++) {
-        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation  
-        I_new = sbwt.update_sbwt_interval(&c, 1, I);
-        while(d > 0 && I_new.first == -1){
-            d--;
-            // Contract left
-            I = drop_first_char_stats(d, I, LCS, n_nodes, left, right);
+        c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation
+        int64_t char_idx = get_char_idx(c);
+        if (char_idx == -1) [[unlikely]]{
+            //Unknown character
+            //Our kmer set assumes DNA alphabet = {A,C,G,T}
+            d = 0;
+            I = {0, n_nodes - 1};
+            MS.push_back({0,0,0});//{d,0,I.first }
+        } else { 
             I_new = sbwt.update_sbwt_interval(&c, 1, I);
+            while(d > 0 && I_new.first == -1){
+                d--;
+                // Contract left
+                I = drop_first_char_stats(d, I, LCS, n_nodes, left, right);
+                I_new = sbwt.update_sbwt_interval(&c, 1, I);
+            }
+            if (I_new.first != -1){
+                I = I_new;
+                d = min(k, d+1);
+            }
+            MS.push_back({d,(I.second - I.first + 1),I.first });
         }
-        if (I_new.first != -1){
-            I = I_new;
-            d = min(k, d+1);
-        }
-        MS.push_back({d,(I.second - I.first + 1),I.first });
     }
     return MS;
 }
@@ -197,7 +206,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                 I_kmer = I;
             }
             // (2b) Finimizer found
-            if (freq ==1){ // 1. rarest
+            if (freq == 1){ // 1. rarest
                 while (freq == 1) { // 2. shortest
                     I_start = I.first;
                     curr_substr = {freq, end - start + 1, I_start, end};
