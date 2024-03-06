@@ -92,6 +92,8 @@ Usage:
 Support for lookup queries is currently available only for "rarest".
 The output for each kmer is a pair (unitig id, index) or (-1,-1) if not found.
 
+## Additional info
+The code works with the DNA alphabet = {A,C,G,T}.
 
 ### Disjoint Spectrum Preserving String Set (DSPSS)
 A DSPSS is required as input to build the SBWT index. You can obtain canonical unitigs or eulertigs using [ggcat](https://github.com/algbio/ggcat).
