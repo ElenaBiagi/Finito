@@ -263,7 +263,10 @@ string run_fmin_streaming(reader_t& reader, const string& index_prefix, unique_p
                 set<tuple<int64_t, int64_t, int64_t>> new_search = verify_shortest_streaming_search(*sbwt, seq, t);
                 finimizers.insert(new_search.begin(), new_search.end());
             }
-        }
+            /* 
+            set<tuple<int64_t, int64_t, int64_t>> new_search = verify_shortest_streaming_search(*sbwt, reader.read_buf, t);
+            finimizers.insert(new_search.begin(), new_search.end());
+         */}
         result = print_finimizer_stats(finimizers, sbwt->number_of_kmers(), sbwt->number_of_subsets(), t);    
     }
     return result;
@@ -375,7 +378,6 @@ int build_fmin(int argc, char** argv) {
             std::cerr<< "LCS_file empty" << std::endl;
             LCS_file = out_prefix + ".LCS.sdsl";
             const sdsl::int_vector<> LCS = lcs_basic_parallel_algorithm(*sbwt, 8);
-            //const sdsl::int_vector<> LCS = lcs_basic_algorithm(*sbwt);
             save_v(LCS_file, LCS);
         }
         unique_ptr<sdsl::int_vector<>> LCS = make_unique<sdsl::int_vector<>>();

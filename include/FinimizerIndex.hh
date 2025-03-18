@@ -116,7 +116,7 @@ public:
 
     FinimizerIndex() {}
 
-    QueryResult search(const std::string& query) const {
+    QueryResult search(const std::string& query, vector<int64_t>& left, vector<int64_t>& right) const {
         // For each k-mer S that is known to be in the SBWT
         //   - Find the finimizer x.
         //   - Walk forward in the SBWT from the colex rank of x (singleton interval), to the end of S,
@@ -133,7 +133,6 @@ public:
         const vector<int64_t>& C = sbwt.get_C_array();
         const int64_t query_len = query.length();
 
-
         QueryResult answer{{}, 0};
 
         if(query.size() < k) answer; 
@@ -147,7 +146,7 @@ public:
 
         for(int64_t kmer_end = k-1; kmer_end < query_len; kmer_end++) {
 
-            if(kmer_colex_ranks[kmer_end].has_value()){
+            if(finimizers_ends_colex[kmer_end].has_value()){//kmer_colex_ranks[kmer_end].has_value()){
                 // kmer exists
                 int64_t global_kmer_end;
                 int64_t finimizer_end = finimizers_ends_colex[kmer_end].value().first;
@@ -183,7 +182,39 @@ public:
         }
         return answer;
     }
+ /* 
+    QueryResult MS(const string& input, vector<int64_t>& left, vector<int64_t>& right)const{
+        const plain_matrix_sbwt_t& sbwt = *(this->sbwt.get());
+        const int64_t n_nodes = sbwt.number_of_subsets();
+        const int64_t k = sbwt.get_k();
+        const vector<int64_t>& C = sbwt.get_C_array();    
+        pair<int64_t, int64_t> I = {0, n_nodes - 1};
+        pair<int64_t, int64_t> I_new;
+        QueryResult answer{{}, 0};
 
+        const int64_t str_len = input.size();
+        char c;
+
+        int64_t d = 0; //lenght of the current match
+        vector<tuple<int64_t, int64_t, int64_t>> MS;
+        for (int64_t end = 0; end < str_len; end++) {
+            c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation  
+            I_new = sbwt.update_sbwt_interval(&c, 1, I);
+            while(d > 0 && I_new.first == -1){
+                d--;
+                // Contract left
+                I = drop_first_char_stats(d, I, *LCS, n_nodes, left, right);
+                I_new = sbwt.update_sbwt_interval(&c, 1, I);
+            }
+            if (I_new.first != -1){
+                I = I_new;
+                d = min(k, d+1);
+            }
+            MS.push_back({d,(I.second - I.first + 1),I.first });
+        }
+        return answer;
+    }
+    */
     void serialize(const string& index_prefix) const {
         std::ofstream global_offsets_out(index_prefix + ".O.sdsl");
         sdsl::serialize(global_offsets, global_offsets_out);

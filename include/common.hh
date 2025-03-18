@@ -169,10 +169,15 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
     for (end = 0; end < str_len; end++) {
         char c = static_cast<char>(input[end] & ~32); // convert to uppercase using a bitwise operation //char c = toupper(input[i]);
         int64_t char_idx = get_char_idx(c);
+        //assert(char_idx != -1);
         if (char_idx == -1) [[unlikely]]{
-            cerr << "Error: unknown character: " << c << endl;
-            cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
-            return {};
+            //cerr << "Error: unknown character: " << c << endl;
+            //cerr << "This works with the DNA alphabet = {A,C,G,T}" << endl;
+            //return {};
+            I = {0, n_nodes - 1};
+            I_kmer = I;
+            start = end;
+            kmer_start = start;
         } else {
             // 1) fmin interval
             I_new = sbwt.update_sbwt_interval(&c, 1, I);
@@ -195,6 +200,7 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
             // Check if the Kmer interval has to be updated
             if ( start != kmer_start){
                 I_kmer_new = sbwt.update_sbwt_interval(&c, 1, I_kmer);
+                if (I_kmer_new.first == -1 && (kmer_start < end - k)){ kmer_start = end - k;}
                 while(I_kmer_new.first == -1){
                     // kmer NOT found
                     kmer_start++;
@@ -241,8 +247,8 @@ tuple<vector<optional<int64_t>>,vector<optional< pair<int64_t, int64_t> > >, vec
                 colex_ranks[kmer_start+k-1] = optional<int64_t>(I_kmer.first);
                 finimizers[kmer_start+k-1] = optional<pair<int64_t, int64_t>>({get<3>(w_fmin), get<2>(w_fmin)});
                 if (best_Ustart.first >= get<3>(w_fmin)){ best[kmer_start+k-1] = optional<pair<int64_t, int64_t>>(best_Ustart);}
-                kmer_start++;
-                I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
+                //kmer_start++;
+                //I_kmer = drop_first_char(end - kmer_start + 1, I_kmer, LCS, n_nodes);
             }
         }
     }
